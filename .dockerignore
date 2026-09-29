@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+config.json
+.data
+runtime
+bin
+test-results
+node_modules
