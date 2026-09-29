@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>HomeCast — التحكم بالبث الخارجي</title><link rel="stylesheet" href="/cloud.css"><script src="/cloud.js" defer></script></head>
+<body>
+<header><div class="brand"><span class="mark">H</span><div><b>HomeCast</b><small>قناتك · من أي مكان</small></div></div><span class="badge">النسخة الخارجية</span></header>
+<main>
+<section id="login" class="card login">
+  <p class="eyebrow">مرحبًا بك</p><h1>تحكّم بقناتك من المتصفح</h1><p class="muted">أدخل مفتاح التحكم الخاص باستضافتك. لا تشاركه مع المشاهدين.</p>
+  <form id="loginForm"><label for="token">مفتاح التحكم</label><input id="token" type="password" autocomplete="current-password" required minlength="32" dir="ltr"><button class="primary" type="submit">دخول لوحة التحكم</button></form>
+  <p class="help">المفتاح موجود في إعدادات استضافتك باسم HOMECAST_CONTROL_TOKEN.</p>
+</section>
+<div id="dashboard" hidden>
+  <section class="intro"><div><p class="eyebrow">لوحة البث</p><h1>مصدر جديد، نفس رابط القناة.</h1><p class="muted">غيّر المحتوى هنا وسيستقبله الرسيفر على رابط القناة الثابت.</p></div><button id="logout" class="quiet">تسجيل الخروج</button></section>
+  <section class="statusbar" aria-label="حالة البث"><span id="stateLight" class="dot"></span><b id="sourceLabel">يجري الاتصال</b><span id="statusDetail" class="muted"></span></section>
+  <div class="grid">
+    <section class="card"><span class="step">01 / المحتوى</span><h2>ماذا تريد أن تبث؟</h2><form id="sourceForm"><label for="sourceUrl">رابط فيديو، بث مباشر، أو صفحة تحتوي فيديو</label><input id="sourceUrl" type="url" placeholder="https://…" dir="ltr" required><button class="primary" type="submit">استخراج الفيديو وبدء البث</button></form><p class="help">يبحث عن الفيديو في المواقع المدعومة وعناصر الفيديو والإطارات. بعض المواقع تحتاج تسجيل دخول أو تمنع استخراج البث.</p><div class="divider"></div><label class="fileLabel" for="videoFile">أو ارفع فيديو من جهازك — حتى 512 ميغابايت</label><input id="videoFile" type="file" accept="video/*,.mkv,.ts"><button id="upload" class="secondary">رفع الفيديو وتشغيله</button><p id="uploadStatus" class="help" aria-live="polite"></p><button id="testSource" class="quiet">عرض شاشة الاختبار</button></section>
+    <section class="card"><span class="step">02 / الإرسال</span><h2>الجودة والإطارات</h2><form id="settingsForm"><label for="outputMode">خيارات قائمة الرسيفر</label><select id="outputMode"><option value="single">قناة واحدة — جودة واحدة</option><option value="multi">ست قنوات بالجودات المختلفة</option></select><label for="singleQuality">جودة القناة</label><select id="singleQuality"><option value="144">144p</option><option value="240">240p</option><option value="360">360p</option><option value="480" selected>480p</option><option value="720">720p HD</option><option value="1080">1080p Full HD</option></select><label for="fpsMode">عدد الإطارات</label><select id="fpsMode"><option value="source">نفس المصدر — بلا تسريع</option><option value="60">خرج 60 إطارًا في الثانية</option></select><button class="primary" type="submit">حفظ إعدادات البث</button></form><p class="help">خيار 60 يكرّر الإطارات عند الحاجة ولا يسرّع الفيديو. رفع الجودة يحتاج قدرة معالجة وسعة إنترنت في الاستضافة.</p></section>
+  </div>
+  <section class="card receiver"><div><span class="step">03 / الرسيفر</span><h2>خذ رابط القناة معك</h2><p class="muted">نزّل القائمة إلى الفلاش ثم استوردها في قائمة IPTV. يبقى الرابط ثابتًا ما دام عنوان الاستضافة ومفتاح البث ثابتين.</p></div><div class="actions"><a class="button primary" href="/download.m3u" download>تنزيل قائمة M3U</a><a class="button secondary" href="/download-ts.m3u" download>تنزيل صيغة TS البديلة</a><button id="copyLink" class="quiet">نسخ رابط القناة</button><button id="checkStream" class="quiet">فحص وصول البث</button></div><p id="streamCheck" class="help" aria-live="polite"></p></section>
+  <details class="card"><summary>روابط القناة وربط برنامج الحاسبة</summary><p class="help">هذه الروابط تمنح المشاهدة لمن يملكها. احفظها عندك. بث شاشة الحاسبة يحتاج تشغيل الحاسبة وبرنامج HomeCast أثناء الإرسال.</p><label for="hlsLink">رابط HLS الثابت</label><input id="hlsLink" readonly dir="ltr"><label for="tsLink">رابط TS الثابت</label><input id="tsLink" readonly dir="ltr"><label for="serverBase">عنوان السيرفر — لخيار «الخارجي» في برنامج الحاسبة</label><input id="serverBase" readonly dir="ltr"><label for="streamKey">مفتاح البث — Stream key</label><input id="streamKey" readonly dir="ltr"><p class="help">مفتاح التحكم هو نفس المفتاح الذي استخدمته للدخول هنا.</p></details>
+  <details class="card"><summary>حالة المعالجة</summary><pre id="workers">لا توجد مشاهدة نشطة بعد.</pre></details>
+  <p class="footnote">الروابط والفيديوهات المرفوعة تعمل على الاستضافة. استمرار الخدمة يعتمد على خطة الاستضافة وتوفّر مصدر الفيديو. الملفات المرفوعة تحتاج تخزينًا دائمًا حتى تبقى بعد إعادة تشغيل الاستضافة.</p>
+</div>
+<div id="message" role="status" aria-live="polite" hidden></div>
+</main><footer>HomeCast · لوحة تحكم خاصة</footer>
+</body></html>
