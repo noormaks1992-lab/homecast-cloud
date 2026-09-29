@@ -1,0 +1,33 @@
+services:
+  homecast:
+    build: .
+    restart: unless-stopped
+    init: true
+    environment:
+      PUBLIC_BASE: https://${DOMAIN:?Set DOMAIN in .env}
+      HOMECAST_CONTROL_TOKEN: ${CONTROL_TOKEN:?Set CONTROL_TOKEN in .env}
+      HOMECAST_STREAM_KEY: ${STREAM_KEY:?Set STREAM_KEY in .env}
+    volumes:
+      - media:/data
+    expose:
+      - "8080"
+    logging:
+      options:
+        max-size: "5m"
+        max-file: "2"
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - caddy-config:/config
+volumes:
+  media:
+  certificates:
+  caddy-config:
