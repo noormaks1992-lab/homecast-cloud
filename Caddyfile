@@ -1,0 +1,3 @@
+{$DOMAIN} {
+    reverse_proxy homecast:8080
+}
