@@ -1,0 +1,8 @@
+{
+  "name": "homecast-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authenticated personal IPTV server and Arabic web control panel",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node cloud-entry.js", "test": "node --test gateway.test.js" }
+}
