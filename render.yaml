@@ -1,0 +1,18 @@
+# Free evaluation only: this plan sleeps and is too small for guaranteed live transcoding.
+services:
+  - type: web
+    name: homecast-cloud
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOMECAST_CONTROL_TOKEN
+        generateValue: true
+      - key: HOMECAST_STREAM_KEY
+        generateValue: true
+      - key: HOMECAST_ROOT
+        value: /data
+      - key: NODE_ENV
+        value: production
