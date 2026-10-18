@@ -1,7 +1,7 @@
 {
   "version": "3.2.0-public-arena.1",
   "snapshotSha256": "e832efab3a61e25e05004a06e55ea73b323b483658b6e5e23ec80e759237d6f4",
-  "status": "prepared; not deployed",
+  "status": "prepared; see deployment record for live status",
   "requiresPrivateLiveBackup": true,
   "unchangedPermanentLinks": true,
   "changes": [

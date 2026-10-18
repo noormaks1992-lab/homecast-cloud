@@ -57,6 +57,6 @@ for(const [name,content] of Object.entries(files)){
  changes.push({path:name,beforeSha256:beforeHashes[name]||null,afterSha256:digest(content),bytes:Buffer.byteLength(content)});
 }
 for(const [name,content] of Object.entries(base64Files)){const decoded=Buffer.from(content,'base64');if(beforeHashes[name]!==digest(decoded))changes.push({path:name,beforeSha256:beforeHashes[name]||null,afterSha256:digest(decoded),bytes:decoded.length});}
-const manifest=JSON.stringify({version,snapshotSha256:digest(bytes),status:'prepared; not deployed',requiresPrivateLiveBackup:true,unchangedPermanentLinks:true,changes},null,2)+'\n';
+const manifest=JSON.stringify({version,snapshotSha256:digest(bytes),status:'prepared; see deployment record for live status',requiresPrivateLiveBackup:true,unchangedPermanentLinks:true,changes},null,2)+'\n';
 if(process.argv.includes('--check')){if(await readFile(path.join(project,'release','manifest.json'),'utf8')!==manifest)throw Error('Release manifest differs from sources');}
 else{await mkdir(path.join(project,'release'),{recursive:true});await writeFile(path.join(project,'release','manifest.json'),manifest);}

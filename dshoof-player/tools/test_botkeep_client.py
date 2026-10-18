@@ -21,6 +21,14 @@ IDEMPOTENCY = 'logical-write-key-0001'
 BASE = PREFIX + '/workloads/' + WORKLOAD_ID
 
 
+def power_operation(action='stop'):
+    return {'id': 'op', 'workloadId': WORKLOAD_ID, 'action': action,
+            'queueState': 'done',
+            'operation': {'id': 'op', 'action': action, 'phase': 'complete'},
+            'runtimeState': 'stopped' if action == 'stop' else 'running',
+            'confirmed': True}
+
+
 class Response:
     def __init__(self, status=200, value=None, *, body=None, headers=None):
         self.status = status
@@ -222,6 +230,109 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(caught.exception.operation_id, 'op')
         self.assertEqual(caught.exception.idempotency_key, IDEMPOTENCY)
         self.assertEqual(sum(request.method == 'POST' for request, _ in transport.requests), 1)
+
+    def test_actual_compound_power_contract_for_stop_start_and_restart(self):
+        for action in ['stop', 'start', 'restart']:
+            completed = power_operation(action)
+            client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                               Response(value=completed))
+            with self.subTest(action=action):
+                self.assertEqual(client.action(action, idempotency_key=IDEMPOTENCY).json(), completed)
+                self.assertEqual([request.method for request, _ in transport.requests], ['POST', 'GET'])
+
+    def test_compound_dispatch_or_legacy_success_cannot_bypass_confirmation(self):
+        for changes in [{'queueState': 'dispatched'}, {'phase': 'dispatch'},
+                        {'queueState': 'running', 'phase': 'running', 'status': 'succeeded'}]:
+            pending = power_operation()
+            for key, value in changes.items():
+                (pending['operation'] if key in ('phase', 'status') else pending)[key] = value
+            client, transport, clock = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                                    Response(value=pending), Response(value=power_operation()))
+            with self.subTest(changes=changes):
+                self.assertTrue(client.action('stop', idempotency_key=IDEMPOTENCY).json()['confirmed'])
+                self.assertEqual(len(transport.requests), 3)
+                self.assertEqual(clock.sleeps, [1])
+        for phase in ['dispatch', 'complete']:
+            client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                               Response(value={'operation': {'id': 'op', 'phase': phase, 'status': 'succeeded'}}))
+            with self.subTest(incomplete_phase=phase), self.assertRaises(OperationError):
+                client.action('stop', idempotency_key=IDEMPOTENCY)
+            self.assertEqual(len(transport.requests), 2)
+
+    def test_compound_confirmation_requires_boolean_true_and_no_write_replay(self):
+        for confirmed in [False, 0, 'true', None]:
+            pending = {**power_operation(), 'confirmed': confirmed}
+            client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                               Response(value=pending), Response(value=power_operation()))
+            with self.subTest(confirmed=confirmed):
+                client.action('stop', idempotency_key=IDEMPOTENCY)
+                self.assertEqual(len(transport.requests), 3)
+        pending = {**power_operation(), 'confirmed': False}
+        client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                           *[Response(value=pending) for _ in range(3)])
+        with self.assertRaises(UncertainWriteError) as caught:
+            client.action('stop', idempotency_key=IDEMPOTENCY, wait_timeout=3)
+        self.assertEqual(caught.exception.operation_id, 'op')
+        self.assertEqual(caught.exception.idempotency_key, IDEMPOTENCY)
+        self.assertEqual(sum(request.method == 'POST' for request, _ in transport.requests), 1)
+
+    def test_compound_runtime_must_match_the_requested_action(self):
+        for action, runtime in [('stop', 'running'), ('start', 'stopped'), ('restart', 'stopped')]:
+            completed = {**power_operation(action), 'runtimeState': runtime}
+            client, _, _ = self.client(Response(202, {'operation': {'id': 'op'}}), Response(value=completed))
+            with self.subTest(action=action), self.assertRaises(OperationError):
+                client.action(action, idempotency_key=IDEMPOTENCY)
+
+    def test_compound_nested_confirmation_or_runtime_cannot_contradict_outer(self):
+        for field, value in [('confirmed', False), ('runtimeState', 'running')]:
+            completed = power_operation()
+            completed['operation'][field] = value
+            client, _, _ = self.client(Response(202, {'operation': {'id': 'op'}}), Response(value=completed))
+            with self.subTest(field=field), self.assertRaises(OperationError):
+                client.action('stop', idempotency_key=IDEMPOTENCY)
+
+    def test_operation_identity_is_checked_in_both_response_layers(self):
+        for layer in ['outer', 'nested']:
+            for field, value in [('id', 'other'), ('workloadId', 'other'),
+                                 ('workload_id', 'other'), ('serviceId', 'other'),
+                                 ('workload', {'id': 'other'}), ('action', 'start')]:
+                completed = power_operation()
+                (completed if layer == 'outer' else completed['operation'])[field] = value
+                client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}), Response(value=completed))
+                with self.subTest(layer=layer, field=field), self.assertRaises((OperationError, GuardError)):
+                    client.action('stop', idempotency_key=IDEMPOTENCY)
+                self.assertEqual(len(transport.requests), 2)
+        for value in [None, [], 'invalid']:
+            client, _, _ = self.client(Response(202, {'operation': {'id': 'op'}}), Response(value={'operation': value}))
+            with self.subTest(operation=value), self.assertRaises(OperationError):
+                client.action('stop', idempotency_key=IDEMPOTENCY)
+
+    def test_accepted_operation_cannot_hide_foreign_outer_identity(self):
+        for field, value in [('id', 'other'), ('workloadId', 'other'), ('action', 'start')]:
+            accepted = {'operation': {'id': 'op'}, field: value}
+            client, transport, _ = self.client(Response(202, accepted))
+            with self.subTest(field=field), self.assertRaises(UncertainWriteError):
+                client.action('stop', idempotency_key=IDEMPOTENCY)
+            self.assertEqual(len(transport.requests), 1)
+
+    def test_failure_in_either_operation_layer_overrides_compound_success(self):
+        for layer in ['outer', 'nested']:
+            for field, value in [('status', 'failed'), ('state', 'cancelled'),
+                                 ('queueState', 'rejected'), ('phase', 'timed_out'),
+                                 ('runtimeState', 'error'), ('success', False),
+                                 ('result', {'success': False}), ('error', 'private failure')]:
+                completed = power_operation()
+                (completed if layer == 'outer' else completed['operation'])[field] = value
+                client, _, _ = self.client(Response(202, {'operation': {'id': 'op'}}), Response(value=completed))
+                with self.subTest(layer=layer, field=field), self.assertRaises(OperationError):
+                    client.action('stop', idempotency_key=IDEMPOTENCY)
+
+    def test_legacy_unwrapped_status_contract_still_polls_to_completion(self):
+        client, transport, _ = self.client(Response(202, {'operation': {'id': 'op'}}),
+                                           Response(value={'id': 'op', 'status': 'running'}),
+                                           Response(value={'id': 'op', 'status': 'completed'}))
+        self.assertEqual(client.action('stop', idempotency_key=IDEMPOTENCY).json()['status'], 'completed')
+        self.assertEqual([request.method for request, _ in transport.requests], ['POST', 'GET', 'GET'])
 
     def test_read_methods_and_backup_schema(self):
         client, transport, _ = self.client(*[Response() for _ in range(7)])

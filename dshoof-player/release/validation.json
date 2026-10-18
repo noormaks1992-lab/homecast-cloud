@@ -1,7 +1,7 @@
 {
   "date": "2026-10-18",
   "version": "3.2.0-public-arena.1",
-  "scope": "Final independently restored snapshot, synthetic audiovisual fixtures, real HTTP and Chromium network shaping; not a production deployment",
+  "scope": "Local release evidence plus separately recorded production deployment; see deployment-2026-10-18.json",
   "restoredSnapshotTests": {
     "tests": 179,
     "passed": 179,
@@ -109,19 +109,24 @@
     "site": "https://dshoof.bot-keep.xyz/",
     "adminLoginVerified": true,
     "privateRuntimeDataBackup": true,
-    "privateRuntimeCodeBackup": false,
+    "privateRuntimeCodeBackup": true,
     "releaseAtInspection": "installed / 3.0.0",
     "streamReadyAtInspection": false,
     "savedProviderApiAvailable": true,
     "savedProviderPlaylistStatusFromCloud": 403,
     "officialDeveloperApiVerified": true,
-    "secureCredentialBound": false,
+    "secureCredentialBound": true,
     "requiredSecret": "BOTKEEP_API_KEY",
-    "deployed": false,
-    "restarted": false
+    "deployed": true,
+    "restarted": true,
+    "releaseAfterDeployment": "3.2.0-public-arena.1",
+    "versionAfterDeployment": "3.2.0",
+    "savedProviderPlaylistStatusFromHosting": 403,
+    "deploymentRecord": "deployment-2026-10-18.json",
+    "actualHostingWritesPerformed": true
   },
   "limitations": [
-    "BOTKEEP_API_KEY is not securely bound; no shared login browser is available. Hosting inspection, code backup, upload and restart remain pending.",
+    "Production deployment and restart completed; direct live Chromium verification is blocked by the isolated browser environment proxy certificate trust.",
     "The 100kbps fixture and chat latency are local observations, not Botkeep CPU or real-provider performance guarantees.",
     "The saved real provider playlist returned403 from the cloud environment; real provider playback remains unverified.",
     "No actual Safari or physical IPTV receiver validation.",
@@ -129,7 +134,7 @@
     "Browser APIs do not reveal an ISP subscription or independently verify Telegram membership; optional telemetry may be unavailable."
   ],
   "botkeepClientOfflineTests": {
-    "passed": 12,
+    "passed": 21,
     "realHostingWritesPerformed": false
   },
   "updaterBootIdentity": {

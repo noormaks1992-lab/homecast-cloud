@@ -153,6 +153,7 @@ class BotkeepClient:
         self._timeout, self._read_retries = float(timeout), read_retries
         self._sleep, self._clock = sleep, clock
         self._operations = {}
+        self._operation_actions = {}
         self._write_identities = {}
         self._workload = PREFIX + "/workloads/" + WORKLOAD_ID
 
@@ -323,19 +324,21 @@ class BotkeepClient:
     def startup_check(self):
         return self._request("GET", self._workload + "/startup-check")
 
-    def _complete(self, response, idempotency_key, wait_timeout):
+    def _complete(self, response, idempotency_key, wait_timeout, *, action=None):
         if response.status != 202:
             return response
         try:
-            operation = response.json()["operation"]
+            data = response.json()
+            operation = data["operation"]
             operation_id = operation["id"]
             if not isinstance(operation_id, str) or not _OPERATION.fullmatch(operation_id):
                 raise ValueError()
-            self._check_workload(operation)
+            self._check_operation_identity(data, operation, operation_id, action)
         except (KeyError, TypeError, ValueError, APIError, GuardError):
             raise UncertainWriteError(idempotency_key=idempotency_key,
                                       status=202) from None
         self._operations[operation_id] = idempotency_key
+        self._operation_actions[operation_id] = action
         return self.wait_operation(operation_id, timeout=wait_timeout)
 
     @staticmethod
@@ -345,6 +348,14 @@ class BotkeepClient:
                 raise GuardError("Operation belongs to a different workload.")
         if isinstance(operation.get("workload"), dict) and operation["workload"].get("id") != WORKLOAD_ID:
             raise GuardError("Operation belongs to a different workload.")
+
+    def _check_operation_identity(self, data, operation, operation_id, action):
+        for part in (data, operation):
+            if not isinstance(part, dict) or part.get("id", operation_id) != operation_id:
+                raise OperationError("Unexpected operation response; completion is unverified.", operation_id=operation_id)
+            self._check_workload(part)
+            if action is not None and part.get("action", action) != action:
+                raise OperationError("Operation action differs from the accepted request.", operation_id=operation_id)
 
     def wait_operation(self, operation_id, *, timeout=180):
         if operation_id not in self._operations:
@@ -358,16 +369,37 @@ class BotkeepClient:
                 raise UncertainWriteError(idempotency_key=self._operations[operation_id], status=error.status, operation_id=operation_id) from None
             data = response.json()
             operation = data.get("operation", data) if isinstance(data, dict) else None
-            if not isinstance(operation, dict) or operation.get("id", operation_id) != operation_id:
-                raise OperationError("Unexpected operation response; completion is unverified.", operation_id=operation_id)
-            self._check_workload(operation)
+            action = self._operation_actions.get(operation_id)
+            self._check_operation_identity(data, operation, operation_id, action)
             state = str(operation.get("status", operation.get("state", ""))).lower().replace("-", "_")
-            failed_result = isinstance(operation.get("result"), dict) and operation["result"].get("success") is False
-            if state in ("failed", "error", "cancelled", "canceled", "rejected", "timed_out") or operation.get("success") is False or failed_result or operation.get("error"):
-                raise OperationError("Remote operation failed; inspect its private response.", operation_id=operation_id, state=state)
-            if state in ("succeeded", "success", "completed", "done"):
+            for part in (data, operation):
+                failed_state = any(str(part.get(name, "")).lower().replace("-", "_") in
+                                   ("failed", "error", "cancelled", "canceled", "rejected", "timed_out")
+                                   for name in ("status", "state", "queueState", "phase", "runtimeState"))
+                failed_result = isinstance(part.get("result"), dict) and part["result"].get("success") is False
+                if failed_state or part.get("success") is False or failed_result or part.get("error"):
+                    raise OperationError("Remote operation failed; inspect its private response.", operation_id=operation_id, state=state)
+            pending = ("queued", "pending", "running", "in_progress", "processing", "accepted", "scheduled", "started", "waiting")
+            compound = any(name in part for part in (data, operation)
+                           for name in ("queueState", "phase", "runtimeState", "confirmed"))
+            if compound:
+                # A dispatched power action is not a verified runtime transition.
+                queue, phase = data.get("queueState"), operation.get("phase")
+                runtime = {"stop": "stopped", "start": "running", "restart": "running"}.get(action)
+                if runtime is None:
+                    raise OperationError("Unknown operation runtime contract; completion is unverified.", operation_id=operation_id)
+                if queue == "done" and phase == "complete" and data.get("confirmed") is True:
+                    if (data.get("runtimeState") != runtime or
+                            operation.get("runtimeState", runtime) != runtime or
+                            operation.get("confirmed", True) is not True):
+                        raise OperationError("Operation confirmation or runtime differs from the requested action.", operation_id=operation_id)
+                    return response
+                dispatch = ("dispatch", "dispatching", "dispatched")
+                if queue not in pending + dispatch + ("done",) or phase not in pending + dispatch + ("complete",):
+                    raise OperationError("Unknown operation state; completion is unverified.", operation_id=operation_id)
+            elif state in ("succeeded", "success", "completed", "done"):
                 return response
-            if state not in ("queued", "pending", "running", "in_progress", "processing", "accepted", "scheduled", "started", "waiting"):
+            elif state not in pending:
                 raise OperationError("Unknown operation state; completion is unverified.", operation_id=operation_id, state=state)
             self._wait(max(0.1, _retry_after(response.headers, maximum=10)), deadline)
         raise UncertainWriteError(idempotency_key=self._operations[operation_id], operation_id=operation_id)
@@ -378,7 +410,7 @@ class BotkeepClient:
             raise GuardError("Only start, stop and restart are authorized.")
         response = self._request("POST", self._workload + "/actions",
                                  payload={"action": action}, idempotency_key=idempotency_key)
-        return self._complete(response, idempotency_key, wait_timeout)
+        return self._complete(response, idempotency_key, wait_timeout, action=action)
 
     def create_backup(self, name, *, idempotency_key, request_id=None, wait_timeout=300):
         _operation_timeout(wait_timeout)
