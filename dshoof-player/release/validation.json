@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-18",
+  "scope": "Local complete snapshot restoration, synthetic audiovisual fixtures and real browser throttling; not a production deployment",
+  "restoredSnapshotTests": {
+    "tests": 102,
+    "passed": 102,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 91.646
+  },
+  "syntaxFiles": 53,
+  "npmAuditKnownVulnerabilities": 0,
+  "emergency100Kbps": {
+    "passed": true,
+    "limitKbps": 100,
+    "startupSeconds": 30.819,
+    "elapsedSeconds": 71.336,
+    "playbackSeconds": 40.467546,
+    "bufferSeconds": 15.596454000000001,
+    "stalls": 0,
+    "encodedBytesAllCompletedRequests": 765360,
+    "encodedMediaBytes": 432185,
+    "primaryRequests": [],
+    "replayRequests": 0,
+    "errors": [],
+    "afterAllInterfaceChanges": true
+  },
+  "weak500Kbps": {
+    "passed": true,
+    "limitKbps": 500,
+    "startupSeconds": 9.846,
+    "elapsedSeconds": 50.513,
+    "playbackSeconds": 40.623465,
+    "bufferSeconds": 3.3978679999999954,
+    "stalls": 0,
+    "encodedBytesAllCompletedRequests": 1969278,
+    "encodedMediaBytes": 1609732,
+    "primaryRequests": [],
+    "replayRequests": 0,
+    "errors": []
+  },
+  "deliveredTransportKbps": {
+    "highMotionPrimary": 4385,
+    "weak720": 742,
+    "emergency144": 53,
+    "alreadyEconomicalPrimary": 280,
+    "adaptiveWeak": 216
+  },
+  "production": {
+    "site": "https://dshoof.bot-keep.xyz",
+    "adminLoginVerified": true,
+    "privateRuntimeDataBackup": true,
+    "privateRuntimeCodeBackup": false,
+    "releaseAtInspection": "installed / 3.0.0",
+    "streamReadyAtInspection": false,
+    "savedProviderApiAvailable": true,
+    "botkeepSessionHttpStatus": 401,
+    "deployed": false,
+    "restarted": false,
+    "officialDeveloperApiVerified": true,
+    "requiredSecret": "BOTKEEP_API_KEY"
+  },
+  "limitations": [
+    "Official Botkeep Developer API found; awaiting securely bound BOTKEEP_API_KEY. No shared login browser is available.",
+    "No actual Safari or physical IPTV receiver validation.",
+    "Synthetic endurance and browser results do not establish Botkeep CPU quota or provider availability."
+  ],
+  "botkeepClientOfflineTests": {
+    "passed": 12,
+    "realHostingWritesPerformed": false
+  },
+  "updaterBootIdentity": {
+    "testsPassed": 7,
+    "rejectsUnrelatedOldListener": true,
+    "legacyRollbackRequiresManualOriginalLauncher": true
+  },
+  "snapshotSha256": "1eca18f8851247cbb4f788db5fcf808519bbb9a6378c5f0ad5e5e0eab267921d",
+  "changedRuntimeFiles": 26,
+  "deltaArchiveSha256": "70d6385156d413a101183f77bbc6f20e4e75b72f92ab520cd3377b414b6e933d"
+}

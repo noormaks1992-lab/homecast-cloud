@@ -1,0 +1,12 @@
+node_modules/
+data/
+.env
+.env.*
+!.env.example
+.dshoof-current.json
+.dshoof-releases/
+.dshoof-dependencies/
+test-results/
+*.log
+*.pid
+soak-results.json
