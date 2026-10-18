@@ -373,6 +373,20 @@ test('member roster and detailed device information remain owner only',()=>{
  assert.equal(f.element('members-list').children.length,0);assert.equal(f.element('viewer-details-dialog').open,false);assert.equal(f.element('viewer-details-body').children.length,0);
 });
 
+test('losing owner access removes private playlist capabilities and invalidates pending source options',()=>{
+ const f=fixture({state:{canControl:true}});f.client.renderRoom();
+ for(const id of ['playlist','source-url','code','source-title'])f.element(id).value='private-source-capability';
+ for(const id of ['download-playlist','download-qualities'])f.element(id).setAttribute('href','/p/private-alias.m3u');
+ for(const id of ['quality-links','history'])f.element(id).append(f.document.createElement('a'));
+ const invalidate=source.slice(source.indexOf('function invalidateSourceOptions()'),source.indexOf('function isMajedPage('));
+ f.load("let majedLoadedURL='private-source',majedLoadVersion=7,majedLoadTimer=null,majedPending={promise:Promise.resolve()};"+invalidate);
+ f.client.setState({...f.client.getState(),canControl:false});f.client.renderRoom();
+ for(const id of ['playlist','source-url','code','source-title'])assert.equal(f.element(id).value,'',id);
+ for(const id of ['download-playlist','download-qualities'])assert.equal(f.element(id).getAttribute('href'),null,id);
+ for(const id of ['quality-links','history'])assert.equal(f.element(id).children.length,0,id);
+ assert.equal(f.load('majedLoadVersion'),8);assert.equal(f.load('majedPending'),null);assert.equal(f.load('majedLoadedURL'),'');
+});
+
 test('owner member details show flat metadata as text and member actions use the opaque ID',async()=>{
  const malicious='<img src=x onerror=alert(1)>',member={id:'opaque-member-7',username:'sara',name:malicious,displayName:malicious,online:true,joinedAt:'2026-10-18T00:00:00Z',info:{at:'2026-10-18T00:01:00Z',device:'هاتف',browser:'متصفح',os:'Android',ip:'198.51.100.22',ipSource:'proxy',battery:{level:72,charging:true},network:{effectiveType:'4g',downlink:5,rtt:100,saveData:true},screen:{width:1080,height:1920},location:{latitude:33.315,longitude:44.366,accuracy:13}},report:{buffer:8}};
  const f=fixture({state:{canControl:true,members:[member]},room:{roster:[{name:malicious}]}});f.client.renderRoom();f.client.renderMembers();

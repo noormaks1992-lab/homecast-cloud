@@ -1,6 +1,6 @@
 {
-  "version": "3.2.0-public-arena.1",
-  "snapshotSha256": "e832efab3a61e25e05004a06e55ea73b323b483658b6e5e23ec80e759237d6f4",
+  "version": "3.3.0-clubhouse.1",
+  "snapshotSha256": "8c8f1c2bf221708c4c5390917455eccc4bca0e7f1fdb013b0edd7f184cd8bd25",
   "status": "prepared; see deployment record for live status",
   "requiresPrivateLiveBackup": true,
   "unchangedPermanentLinks": true,
@@ -26,14 +26,14 @@
     {
       "path": "package-lock.json",
       "beforeSha256": "b84d995862cd4a5fc270241b9799aca7ac6e5d5974a1f84713e9cef04f76628e",
-      "afterSha256": "d55cf1d81f1adfae6c25628bb4b707c2a0bf1156ac13526487521500dd0d9056",
+      "afterSha256": "1e65f36f75cb3b4ecf37562d8c427e4ccba0051777e33d223a8c966170e5fce6",
       "bytes": 19365
     },
     {
       "path": "package.json",
       "beforeSha256": "b2f2696725fa3f43c5607af9d8775841d15bab0df44a0b58e9398eac460fe992",
-      "afterSha256": "b50cee7f4de676f667d0aab74a4ad71f2795acecfebd1e454ccf5a359c8ed489",
-      "bytes": 1585
+      "afterSha256": "dde2c0c1cb203bd613da854594c903d97a3f8a217c0a82fb54989cd3ee96e1a3",
+      "bytes": 1619
     },
     {
       "path": "pro.mjs",
@@ -44,62 +44,86 @@
     {
       "path": "public/app.js",
       "beforeSha256": "572879e49f942b90cbc5c0af8396e5636d0d56b50d01ef6b3d783548d3710321",
-      "afterSha256": "545f8b6c0990d4bdee2efcd0478809307ed7c80e0be42d6161d5454a0c166999",
-      "bytes": 63192
+      "afterSha256": "a4c975ec33f52bd219d359a11610c66c95ecb9cd94f98487387b736ddf5f79d3",
+      "bytes": 64816
     },
     {
       "path": "public/beta.js",
       "beforeSha256": "ba38e6c1a25644dbdb056a91a4bd2d33cf9a181e5b2bdadfa16fb570e99c58bd",
-      "afterSha256": "b12f43ada6a65f688a8a09b98187268be0540ac0751a4170d35e3f12497b2ea6",
-      "bytes": 17657
+      "afterSha256": "7b1e19d4138545fdd0391eb9408d998507b727d3446469a752031d74e0f34b73",
+      "bytes": 20485
+    },
+    {
+      "path": "public/club-icons.svg",
+      "beforeSha256": null,
+      "afterSha256": "89c41fd238b04a2de071749ac67e98822b229611cfda42e89f998ddf0695364f",
+      "bytes": 14989
+    },
+    {
+      "path": "public/club-licenses.md",
+      "beforeSha256": null,
+      "afterSha256": "45341d00211093bf87da56ed118f762fa524ba09887ac6577e4cb213bab463a4",
+      "bytes": 8544
+    },
+    {
+      "path": "public/club-mark.svg",
+      "beforeSha256": null,
+      "afterSha256": "437c8faa992900cdc96aa42218075fe95d8e8dba8b8a02c0dc2334fa969f3b47",
+      "bytes": 345
+    },
+    {
+      "path": "public/club-pages.css",
+      "beforeSha256": null,
+      "afterSha256": "0ccf31a7b1e7390d3ee1620b0a5b1f8d45e368c9d064740c1fc23a0a82595031",
+      "bytes": 1664
     },
     {
       "path": "public/index.html",
       "beforeSha256": "9a2bb1e77e96ec245e86be780ee28def50d63d784f693852c50b051236e7030d",
-      "afterSha256": "5a36022543a6f1328d3b8190b103bc8bb9aa8cbbee5fe272445f478aef3f2484",
-      "bytes": 38671
+      "afterSha256": "6905f586c91f8b561b38c8606d90f62bf816b9d284a917605f0c03cdfc60a626",
+      "bytes": 45901
     },
     {
       "path": "public/manifest.webmanifest",
       "beforeSha256": "e5847e66f64ca4e0c0341f8d56f9eef275fb6636f5399f9c1638901e9d4e9608",
-      "afterSha256": "b0d7c1868ecd54469d65a957e91dcaf4d6f7596051a8994684ae4e9876847072",
-      "bytes": 492
+      "afterSha256": "dd9a0c22ca86df219c036ba521d7550a4e174cd6a725b9f97c2af7351d09c960",
+      "bytes": 336
     },
     {
       "path": "public/offline.html",
       "beforeSha256": "c548c5a4753c6de645cbedb27d36074cfb6d893d6345293713a1a53731344790",
-      "afterSha256": "bdc07ac2fba88b03e0eb3b36430b522a62eb919db96f13b5ba4edd93705b98b4",
-      "bytes": 809
+      "afterSha256": "b45f59bddd9c0ec4b06f771a498bcc56f120fe57b9b0bda4c127a3b4a843e927",
+      "bytes": 1130
     },
     {
       "path": "public/pro.css",
       "beforeSha256": "22760c600a1cab431244585ce1b66d81f84253d8326d93cd153ea2542c72cc8d",
-      "afterSha256": "47464aecc18453d649486cb413aa1e473cdeb5fc5d596ac2ad3c5d45655db6f3",
-      "bytes": 98859
+      "afterSha256": "ab621744ea36f59f5998d38b454a0ee89e4050fa92839cb4298ee63f77233e82",
+      "bytes": 12779
     },
     {
       "path": "public/pro.js",
       "beforeSha256": "6a9900d8894c568cf1d6fd098ba44b965c79880c8f666ab51d029218b28c165e",
-      "afterSha256": "6e8f5df5574b15df4e6031d9f2cb47fb86d0aa831b98d8bbf8fb10b5db2afe19",
-      "bytes": 23104
+      "afterSha256": "1ca4f2361d35accd9499471a8922fb3d73b81f1726e347b4053320c9ba80149d",
+      "bytes": 25846
     },
     {
       "path": "public/remote.html",
       "beforeSha256": "b9477a5e5e40fffa0adc77f72f07d5c7570964af68339faf1862ba041c8965fe",
-      "afterSha256": "a0678c6baba3d703ceb2bb6f08b013720eaf7b384b3419a00c921ed5de9130c9",
-      "bytes": 1204
+      "afterSha256": "8ca71c2e486029cbb655d96a359d5addfa465e18b5f2f412778f804588a25052",
+      "bytes": 2285
     },
     {
       "path": "public/style.css",
       "beforeSha256": "cf373cf71dfbb84c80846e7131cc436493b5c48edb9d66e6f25e5ebf5f77fb04",
-      "afterSha256": "a864b963fe67942153139da8c836b6df7151688ea22ade0fd7e9a1068c850003",
-      "bytes": 17904
+      "afterSha256": "16b661613f0afc7e688b6340813e8b7fbc84bdb1de6202eb1095ce5c9fbd35a6",
+      "bytes": 46366
     },
     {
       "path": "public/sw.js",
       "beforeSha256": "736f1778cc2baddecb1480b546c8558bc8f826d0f0bcf42c7034ef84da6b317f",
-      "afterSha256": "5bc28ef2925aec0afc45fc020c828f1f650a6ee769010440f841dd5171a5ed75",
-      "bytes": 1006
+      "afterSha256": "eef8edc5b773101460f107d8bae88bf44e9fd7ed826d7b9da08b85dfaf8e461c",
+      "bytes": 1052
     },
     {
       "path": "quality.mjs",
@@ -116,8 +140,8 @@
     {
       "path": "server.mjs",
       "beforeSha256": "81798671e76271aa35182bb27f63d23903ea5a9fe09a35e5de48d5495397562a",
-      "afterSha256": "610185b8733e43e710134ec7ff8b33837368eb9e759421e1d18dfc665e55ea6f",
-      "bytes": 40159
+      "afterSha256": "4270547ec4949d92181cd92e49059dfeb79f5585acd93e1b8de696e1d2a6033c",
+      "bytes": 40497
     },
     {
       "path": "sources.mjs",
@@ -154,6 +178,24 @@
       "beforeSha256": "2526dc92a0ad2927a0337adcab070207a2e53286237bea7863e11e8930dc0662",
       "afterSha256": "743e7ffe1b0f06075ccbb84d687a75159b2860eb87184cd14b710acdd0a563dc",
       "bytes": 8426
+    },
+    {
+      "path": "public/club-arabic.woff2",
+      "beforeSha256": null,
+      "afterSha256": "e8d8ca61d4da1a1a38b9454dbae92be589185efc7af0af6046f6a11c60476e99",
+      "bytes": 31348
+    },
+    {
+      "path": "public/club-crowd.webp",
+      "beforeSha256": null,
+      "afterSha256": "bf8163eeb1833b692bf9b2ffd2c5c1786bdffbb962d7d42b232bac70018d14b9",
+      "bytes": 39742
+    },
+    {
+      "path": "public/club-stadium.webp",
+      "beforeSha256": null,
+      "afterSha256": "b7058929dbc5b4187a07c3fe91ff2fc68c99f63651f010c125297b0f362efa83",
+      "bytes": 162948
     },
     {
       "path": "public/dshoof-logo-small.webp",

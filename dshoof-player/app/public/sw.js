@@ -1,6 +1,6 @@
 /* Cache only the public offline shell and its small stylesheet. Never cache invitations, API or video. */
-const CACHE='dshoof-shell-room6';
-const ASSETS=['/offline.html','/favicon.svg','/style.css?v=room6'];
+const CACHE='dshoof-shell-club7';
+const ASSETS=['/offline.html','/club-mark.svg','/style.css?v=club7','/club-pages.css?v=club7','/club-icons.svg'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });

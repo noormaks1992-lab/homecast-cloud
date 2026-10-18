@@ -7,7 +7,7 @@ import {validateSnapshot} from '../app/github-start.mjs';
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.join(project,'app');
-const version='3.2.0-public-arena.1';
+const version='3.3.0-clubhouse.1';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const files={},base64Files={};
 async function collect(relative=''){
