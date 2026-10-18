@@ -42,7 +42,7 @@ export function createQuality({open=openPublic,now=Date.now}={}){
  function map(url,base,key,playlist=false,height){
   const id=createHash('sha256').update(epoch+':'+url+':'+String(height??'auto')+':'+playlist).digest('hex').slice(0,24);
   if(!registry.has(id)){if(registry.size>=20000)registry.delete(registry.keys().next().value);registry.set(id,{url,playlist,height});}
-  return base+'/quality/media/'+id+'?key='+encodeURIComponent(key);
+  return base+'/quality/media/'+id+(key?'?key='+encodeURIComponent(key):'');
  }
  function rewrite(text,url,base,key,height){
   const filtered=filterMaster(text,url,height),lists=new Set(variants(filtered,url).map(v=>v.url));

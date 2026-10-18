@@ -7,7 +7,7 @@ import {validateSnapshot} from '../app/github-start.mjs';
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.join(project,'app');
-const version='3.1.0-network-stability.1';
+const version='3.2.0-public-arena.1';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const files={},base64Files={};
 async function collect(relative=''){
@@ -49,7 +49,7 @@ if(process.argv.includes('--check')){
 // These are the candidate sources which matched the live public files before
 // development. Backend hashes must still be verified against a private live backup.
 const beforeHashes=JSON.parse(await readFile(path.join(project,'release','baseline-hashes.json'),'utf8')).files;
-const runtime=['server.mjs','supervisor.mjs','sources.mjs','quality.mjs','room.mjs','pro.mjs','voice.mjs','cap.mjs','segment-cache.mjs','ffmpeg-runtime.mjs','stream-profile.mjs','weak-stream.mjs','github-start.mjs','package.json','package-lock.json'];
+const runtime=['server.mjs','supervisor.mjs','sources.mjs','quality.mjs','room.mjs','chat-events.mjs','viewer-info.mjs','watch-analytics.mjs','pro.mjs','cap.mjs','segment-cache.mjs','ffmpeg-runtime.mjs','stream-profile.mjs','weak-stream.mjs','github-start.mjs','package.json','package-lock.json'];
 const changes=[];
 for(const [name,content] of Object.entries(files)){
  if(!runtime.includes(name)&&!name.startsWith('public/'))continue;

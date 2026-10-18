@@ -4,7 +4,6 @@ import {EventEmitter} from 'node:events';
 import {Readable} from 'node:stream';
 import {createPublicOpener,inputURL,rewriteInput} from './sources.mjs';
 import {createRoom,cookies} from './room.mjs';
-import {createVoice} from './voice.mjs';
 import {createPro} from './pro.mjs';
 
 const request=cookie=>({headers:{cookie:'dshoof_owner='+cookie},socket:{remoteAddress:'127.0.0.1'}});
@@ -41,14 +40,6 @@ test('source URL aliases and nested HLS escape routes are refused',()=>{
  assert.throws(()=>rewriteInput('#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="file:///etc/passwd"','https://example.com/',x=>x));
  assert.throws(()=>rewriteInput('#EXTM3U\n#EXT-X-DEFINE:NAME="url",VALUE="http://127.0.0.1/"','https://example.com/',x=>x));
 });
-test('voice moderation survives rejoin, cleared signals do not leak, and signaling bursts are bounded',()=>{
- let time=1000;const voice=createVoice({now:()=>time}),a={id:'a',connection:'a1',name:'A'},b={id:'b',connection:'b1',name:'B'},owner={owner:true};
- voice.join(a);voice.join(b);voice.signal(a,{to:'b1',type:'offer',data:{sdp:'test'}});voice.mute(owner,{id:'a1',muted:true});
- voice.leave(a);voice.join(a);assert.equal(voice.poll(a,0).muted,true);assert.throws(()=>voice.signal(a,{to:'b1',type:'offer',data:{sdp:'test'}}),/الصوتية/);
- voice.mute(owner,{id:'a1',muted:false});for(let i=0;i<80;i++)voice.signal(a,{to:'b1',type:'candidate',data:{candidate:String(i)}});
- assert.throws(()=>voice.signal(a,{to:'b1',type:'candidate',data:{candidate:'over-limit'}}),/كثيرة/);
- time+=10001;voice.signal(a,{to:'b1',type:'answer',data:{sdp:'test'}});voice.revoke('a');assert.equal(voice.poll(b,0).signals.length,0);
-});
 test('backup and schedules preserve long numeric codes and pair reads are scoped to a device',async()=>{
  const pro=createPro({},async()=>{}),code='12345678901234567890123456789012';await pro.backup({code});assert.equal(pro.state.backup.code,code);
  await pro.schedule({code,start:new Date(Date.now()+1000).toISOString(),end:new Date(Date.now()+10000).toISOString()});assert.equal(pro.state.schedules[0].source.code,code);
@@ -63,9 +54,4 @@ test('viewer playback telemetry updates owner metrics without resending social h
  room.report(viewer,{state:'playing',buffer:18,height:360,startupMs:1200,stalls:2});
  const delta=room.snapshot(viewer,before.version);assert.equal(delta.version,before.version);assert.equal(Object.hasOwn(delta,'messages'),false);assert.equal(Object.hasOwn(delta,'poll'),false);
  const connection=room.admin('https://example.com')[0].connections[0];assert.equal(connection.report.state,'playing');assert.equal(connection.report.buffer,18);assert.equal(connection.report.height,360);assert.equal(connection.report.stalls,2);
-});
-
-test('muted voice participants can answer and exchange ICE to keep listening',()=>{
- const voice=createVoice(),a={id:'a',connection:'a1',name:'A'},b={id:'b',connection:'b1',name:'B'};voice.join(a);voice.join(b);voice.mute({owner:true},{id:'a1',muted:true});voice.leave(a);voice.join(a);assert.equal(voice.poll(a,0).muted,true);
- voice.signal(a,{to:'b1',type:'answer',data:{sdp:'receive-only answer'}});voice.signal(a,{to:'b1',type:'candidate',data:{candidate:'ice'}});assert.deepEqual(voice.poll(b,0).signals.map(signal=>signal.type),['answer','candidate']);assert.throws(()=>voice.signal(a,{to:'b1',type:'offer',data:{sdp:'new offer'}}),/الصوتية/);
 });

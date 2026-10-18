@@ -6,7 +6,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {readFile} from 'node:fs/promises';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
-const release='3.1.0-network-stability.1';
+const release='3.2.0-public-arena.1';
 const directory=path.resolve(root,process.env.DATA_DIR||'data');
 
 // A mistaken application root must fail before server.mjs can create new owner

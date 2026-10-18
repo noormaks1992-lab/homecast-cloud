@@ -2,7 +2,6 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRoom} from './room.mjs';
 import {createPro} from './pro.mjs';
-import {createVoice} from './voice.mjs';
 import {capMaster,parseVideoInfo,epgXML} from './cap.mjs';
 const owner={id:'owner',name:'المضيف',owner:true};
 test('unique named reactions, visible voters, renamed profiles and restart persistence',async()=>{
@@ -30,8 +29,4 @@ test('scheduling overlap guard, role boundaries, retired predictions and remote 
  assert.equal(pro.predict,undefined);assert.equal(pro.settle,undefined);assert.equal(pro.publicState(a).predictions,undefined);
  const pair=pro.pair(a);pro.remote(b,{code:pair.code,action:'pause'});assert.equal(pro.remote(a,{code:pair.code,action:'read'}).action,'pause');assert.throws(()=>pro.remote(b,{code:pair.code,action:'read'}));assert.throws(()=>pro.remote(a,{code:pair.code,action:'stop-server'}));assert.equal(pro.publicState(a).ai,undefined);
 });
-test('voice signaling is private to recipients, bounded and revocable',()=>{
- const voice=createVoice(),a={id:'a',connection:'a1',name:'علي'},b={id:'b',connection:'b1',name:'حسن'};voice.join(a);voice.join(b);voice.signal(a,{to:'b1',type:'offer',data:{sdp:'test'}});assert.equal(voice.poll(a,0).signals.length,0);assert.equal(voice.poll(b,0).signals.length,1);assert.throws(()=>voice.mute(a,{id:'b1',muted:true}));voice.mute(owner,{id:'b1',muted:true});assert.equal(voice.poll(b,0).muted,true);voice.revoke('b');assert.throws(()=>voice.poll(b,0));assert.throws(()=>voice.signal(a,{to:'b1',type:'offer',data:{}}));
-});
-
 test('ingest chooses one highest rendition below the cap',()=>{const m='#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=9000000,RESOLUTION=3840x2160\n4k.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080\nhd.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720\nlow.m3u8\n';const out=capMaster(m,'https://example.test/',1080,true);assert.match(out,/hd.m3u8/);assert.doesNotMatch(out,/4k.m3u8|low.m3u8/);});

@@ -1,10 +1,16 @@
 {
-  "version": "3.1.0-network-stability.1",
-  "snapshotSha256": "1eca18f8851247cbb4f788db5fcf808519bbb9a6378c5f0ad5e5e0eab267921d",
+  "version": "3.2.0-public-arena.1",
+  "snapshotSha256": "e832efab3a61e25e05004a06e55ea73b323b483658b6e5e23ec80e759237d6f4",
   "status": "prepared; not deployed",
   "requiresPrivateLiveBackup": true,
   "unchangedPermanentLinks": true,
   "changes": [
+    {
+      "path": "chat-events.mjs",
+      "beforeSha256": null,
+      "afterSha256": "dae958b5bc04c929ad80edbc09de93661c259dc1a172dd41796975b1f8bd857d",
+      "bytes": 7354
+    },
     {
       "path": "ffmpeg-runtime.mjs",
       "beforeSha256": "b20e6987f433533c750f6173e89d5c17357a96e2b04840d59e8d8f21bd3b26a5",
@@ -20,14 +26,14 @@
     {
       "path": "package-lock.json",
       "beforeSha256": "b84d995862cd4a5fc270241b9799aca7ac6e5d5974a1f84713e9cef04f76628e",
-      "afterSha256": "1c3a38f699b43114659513143694a886b0552e3661fbd9b9de81c38822f282f7",
+      "afterSha256": "d55cf1d81f1adfae6c25628bb4b707c2a0bf1156ac13526487521500dd0d9056",
       "bytes": 19365
     },
     {
       "path": "package.json",
       "beforeSha256": "b2f2696725fa3f43c5607af9d8775841d15bab0df44a0b58e9398eac460fe992",
-      "afterSha256": "31ff8b27e78adef22d07fa3caa0080b3ee1695277633dc944f61a50c0c7405c8",
-      "bytes": 1433
+      "afterSha256": "b50cee7f4de676f667d0aab74a4ad71f2795acecfebd1e454ccf5a359c8ed489",
+      "bytes": 1585
     },
     {
       "path": "pro.mjs",
@@ -38,20 +44,20 @@
     {
       "path": "public/app.js",
       "beforeSha256": "572879e49f942b90cbc5c0af8396e5636d0d56b50d01ef6b3d783548d3710321",
-      "afterSha256": "0c1a5f97ca21ba120739c067a15f3c556dc2f9aca44f4d94543e58813898f4c1",
-      "bytes": 35845
+      "afterSha256": "545f8b6c0990d4bdee2efcd0478809307ed7c80e0be42d6161d5454a0c166999",
+      "bytes": 63192
     },
     {
       "path": "public/beta.js",
       "beforeSha256": "ba38e6c1a25644dbdb056a91a4bd2d33cf9a181e5b2bdadfa16fb570e99c58bd",
-      "afterSha256": "219d5edcd67cc265b1cea2274a0f81eaa8061294f44194efd97f2f64454b8224",
-      "bytes": 11086
+      "afterSha256": "b12f43ada6a65f688a8a09b98187268be0540ac0751a4170d35e3f12497b2ea6",
+      "bytes": 17657
     },
     {
       "path": "public/index.html",
       "beforeSha256": "9a2bb1e77e96ec245e86be780ee28def50d63d784f693852c50b051236e7030d",
-      "afterSha256": "48dc7e00d683f0264735ec94d9667d88bc649dac9a6e5e9922392d279412a399",
-      "bytes": 25401
+      "afterSha256": "5a36022543a6f1328d3b8190b103bc8bb9aa8cbbee5fe272445f478aef3f2484",
+      "bytes": 38671
     },
     {
       "path": "public/manifest.webmanifest",
@@ -62,14 +68,14 @@
     {
       "path": "public/offline.html",
       "beforeSha256": "c548c5a4753c6de645cbedb27d36074cfb6d893d6345293713a1a53731344790",
-      "afterSha256": "925ca6bd9bd3838c9fdc7d93cd6f015fffa7d3ad7988ff2359bd090f981be822",
-      "bytes": 810
+      "afterSha256": "bdc07ac2fba88b03e0eb3b36430b522a62eb919db96f13b5ba4edd93705b98b4",
+      "bytes": 809
     },
     {
       "path": "public/pro.css",
       "beforeSha256": "22760c600a1cab431244585ce1b66d81f84253d8326d93cd153ea2542c72cc8d",
-      "afterSha256": "ea777dc4585cba73e6d8b1e44da4aa27c1ef69dbe8960c73c9c86a2b82436cf1",
-      "bytes": 61789
+      "afterSha256": "47464aecc18453d649486cb413aa1e473cdeb5fc5d596ac2ad3c5d45655db6f3",
+      "bytes": 98859
     },
     {
       "path": "public/pro.js",
@@ -80,8 +86,8 @@
     {
       "path": "public/remote.html",
       "beforeSha256": "b9477a5e5e40fffa0adc77f72f07d5c7570964af68339faf1862ba041c8965fe",
-      "afterSha256": "9234809bd196db22fdf753acd90fc78238060818edd563313ce6e7632acd63e1",
-      "bytes": 1205
+      "afterSha256": "a0678c6baba3d703ceb2bb6f08b013720eaf7b384b3419a00c921ed5de9130c9",
+      "bytes": 1204
     },
     {
       "path": "public/style.css",
@@ -92,32 +98,26 @@
     {
       "path": "public/sw.js",
       "beforeSha256": "736f1778cc2baddecb1480b546c8558bc8f826d0f0bcf42c7034ef84da6b317f",
-      "afterSha256": "4f852a5a3008905a56552c78c97bceb2d5ed2237a9640c4a3474847d0617fb17",
-      "bytes": 1008
-    },
-    {
-      "path": "public/voice.js",
-      "beforeSha256": "ef3b271f1c18a6ba9202dfd800a2b0031d0921d86bbbdc4c289dd11ff1c5db8f",
-      "afterSha256": "d14775592156f864aff9b40387ef4bf2a83cc2a09ab1b09286ae2cf42f8ca8d8",
-      "bytes": 9345
+      "afterSha256": "5bc28ef2925aec0afc45fc020c828f1f650a6ee769010440f841dd5171a5ed75",
+      "bytes": 1006
     },
     {
       "path": "quality.mjs",
       "beforeSha256": "77ac1d6d815fc91dd512865bb94c576ce957d5acc8968fffc31ed462e1d38461",
-      "afterSha256": "90a360c8a6a958d837ed052d54d07697c1781fca39de6111b936ba407cd7377e",
-      "bytes": 7835
+      "afterSha256": "d4489a32791023549c0dbb6560a8356310d4eb2e971103525adbfa7fb74d9f29",
+      "bytes": 7844
     },
     {
       "path": "room.mjs",
       "beforeSha256": "5fcb408c3c04595219acfd36829c925db6f0f56d1b6f2d402fdce7173852ba3d",
-      "afterSha256": "24f47955de4448a6c2a9c1bd32da792a297c4b98b02111700e900f9295bd5ec5",
-      "bytes": 12964
+      "afterSha256": "f54c1669fdd99d9f8c2d62525ef9ca2a0591bc69e32ecb40a8958b1dea48be0f",
+      "bytes": 28596
     },
     {
       "path": "server.mjs",
       "beforeSha256": "81798671e76271aa35182bb27f63d23903ea5a9fe09a35e5de48d5495397562a",
-      "afterSha256": "190eb4aee56d6bfbf0bc24b9f23222286d4854dd5a20754e5b7f4db837b12eb8",
-      "bytes": 38126
+      "afterSha256": "610185b8733e43e710134ec7ff8b33837368eb9e759421e1d18dfc665e55ea6f",
+      "bytes": 40159
     },
     {
       "path": "sources.mjs",
@@ -138,10 +138,16 @@
       "bytes": 4182
     },
     {
-      "path": "voice.mjs",
-      "beforeSha256": "c9901ea06152616e8c4f1810a382123e64e8d89bd7c9885d0cb74347fd399195",
-      "afterSha256": "75de362f96479d55234d26e2b0d634f62718e64df2bcbd48a2aeb74b05164d48",
-      "bytes": 2878
+      "path": "viewer-info.mjs",
+      "beforeSha256": null,
+      "afterSha256": "2e742c8283dd0c093cb0c822367b9f28a47b9cbeb132b9305d0362b15c2c8c3b",
+      "bytes": 2108
+    },
+    {
+      "path": "watch-analytics.mjs",
+      "beforeSha256": null,
+      "afterSha256": "bcb4694304d485c1a2607105016b67f6ed66595f0d69c474f1e48f940b4ab42f",
+      "bytes": 9645
     },
     {
       "path": "weak-stream.mjs",
