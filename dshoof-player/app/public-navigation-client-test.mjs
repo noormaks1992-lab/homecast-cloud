@@ -205,17 +205,7 @@ test('loss of owner access closes private dialogs and returns visible focus to w
  f.setOwner(true);f.render();assertPage(f,'watch');assert.equal(f.document.body.dataset.adminTab,'broadcast');
 });
 
-test('one network preset group delegates once to the canonical hidden select and respects disabled or repeated choices',()=>{
- const f=fixture(),select=f.element('network-mode');assert(select);assert.equal(select.hidden,true);assert.equal(select.tabIndex,-1);assert.equal(f.all('#network-mode').length,1);
- assert.deepEqual(f.all('[data-network-preset]').map(control=>control.dataset.networkPreset),['fast','weak','emergency']);
- const originalSelect=select,weak=f.query('[data-network-preset="weak"]'),emergency=f.query('[data-network-preset="emergency"]');
- weak.click();assert.equal(select.value,'weak');assert.deepEqual(f.networkEvents,[{value:'weak',bubbles:true}]);f.render();assert.equal(weak.getAttribute('aria-pressed'),'true');assert(f.document.body.classList.contains('data-saver'));
- weak.click();assert.equal(f.networkEvents.length,1);emergency.click();f.render();assert.equal(f.networkEvents.length,2);assert.equal(select.value,'emergency');
- for(let count=0;count<4;count++){f.window.dshoofStudio.navigate(count%2?'tools':'watch');f.render();}
- assert(f.element('network-mode')===originalSelect,'navigation keeps the canonical select instance');assert.equal(f.all('#network-mode').length,1);assert.equal(f.all('[data-network-preset]').length,3);
- weak.dataset.networkPreset='unsupported';weak.click();assert.equal(select.value,'emergency');assert.equal(f.networkEvents.length,2);weak.dataset.networkPreset='weak';
- select.disabled=true;f.render();assert(f.all('[data-network-preset]').every(control=>control.disabled));weak.click();assert.equal(select.value,'emergency');assert.equal(f.networkEvents.length,2);
-});
+test('connection presets are removed and channel selection replaces compression choices',()=>{const f=fixture();assert.equal(f.all('[data-network-preset]').length,0);assert.equal(f.all('#channel-select').length,1);assert.equal(f.all('#network-mode').length,1);});
 
 test('legacy appearance migrates the old default colors while preserving font, compactness, chat, and motion choices',()=>{
  const saved={theme:'midnight',accent:'mint',font:'xlarge',compact:true,chat:false},f=fixture({storage:{'dshoof-appearance':JSON.stringify(saved),'dshoof-motion':'off'}});
@@ -235,3 +225,4 @@ test('appearance controls save valid choices, reject unknown values, and reset t
  f.element('custom-reset').click();assert.deepEqual(JSON.parse(f.stored.get('dshoof-appearance')),{theme:'ivory',accent:'coral',font:'normal',compact:false,chat:true});assert.equal(f.stored.get('dshoof-motion'),'on');assert.equal(f.document.body.dataset.theme,'ivory');assert.equal(f.document.body.dataset.accent,'coral');
  const reduced=fixture({reducedMotion:true});assert(reduced.document.body.classList.contains('motion-off'));assert.equal(reduced.stored.get('dshoof-motion'),'on','device motion preference does not overwrite the saved user setting');
 });
+

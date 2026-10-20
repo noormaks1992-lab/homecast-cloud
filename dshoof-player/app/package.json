@@ -1,6 +1,6 @@
 {
   "name": "dshoof-player",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env github-start.mjs",
-    "test": "node --test --test-concurrency=2 test.mjs arena-test.mjs bandwidth-integration-test.mjs code-test.mjs ffmpeg-runtime-test.mjs github-start-test.mjs majed-choice-integration-test.mjs majed-choice-test.mjs page-source-test.mjs persistence-http-test.mjs player-continuity-test.mjs player-flow-test.mjs pro-test.mjs quality-cache-test.mjs quality-test.mjs recovery-stability-test.mjs relay-page-test.mjs room-test.mjs security-http-test.mjs security-test.mjs segment-cache-test.mjs source-test.mjs stream-profile-test.mjs supervisor-test.mjs weak-bootstrap-test.mjs weak-lifecycle-test.mjs weak-stream-test.mjs weak-transport-test.mjs weak-watchdog-test.mjs chat-events-test.mjs public-member-test.mjs public-entry-client-test.mjs public-integration-test.mjs viewer-info-test.mjs watch-analytics-test.mjs member-management-test.mjs public-navigation-client-test.mjs",
-    "test:stream": "node --test --test-concurrency=1 code-test.mjs source-test.mjs quality-test.mjs stream-profile-test.mjs weak-stream-test.mjs weak-transport-test.mjs weak-watchdog-test.mjs weak-lifecycle-test.mjs bandwidth-integration-test.mjs player-continuity-test.mjs recovery-stability-test.mjs majed-choice-integration-test.mjs",
+    "test": "node --test --test-concurrency=2 test.mjs arena-test.mjs code-test.mjs ffmpeg-runtime-test.mjs github-start-test.mjs majed-choice-integration-test.mjs majed-choice-test.mjs page-source-test.mjs persistence-http-test.mjs player-flow-test.mjs pro-test.mjs quality-cache-test.mjs quality-test.mjs recovery-stability-test.mjs relay-page-test.mjs room-test.mjs security-http-test.mjs security-test.mjs segment-cache-test.mjs source-test.mjs supervisor-test.mjs chat-events-test.mjs public-member-test.mjs public-entry-client-test.mjs public-integration-test.mjs viewer-info-test.mjs watch-analytics-test.mjs member-management-test.mjs public-navigation-client-test.mjs dual-channel-test.mjs extractor-test.mjs",
+    "test:stream": "node --test --test-concurrency=1 code-test.mjs source-test.mjs quality-test.mjs recovery-stability-test.mjs majed-choice-integration-test.mjs dual-channel-test.mjs extractor-test.mjs",
     "start:local": "node --env-file-if-exists=.env supervisor.mjs",
     "test:soak": "node stream-endurance.mjs"
   },

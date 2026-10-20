@@ -1,3 +1,4 @@
+import {htmlText,attributes as htmlAttributes,pageCandidates} from './page-extractor.mjs';
 import http from 'node:http';
 import {createHash,createDecipheriv} from 'node:crypto';
 import https from 'node:https';
@@ -85,7 +86,7 @@ export async function inspectSource(value,{open=openPublic,inspect=inspectDirect
  if(typeof serverId!=='string'||serverId.length>128)throw Error('اختيار مشغّل ماجد غير صالح');
  const pageURL=inputURL(value).href;if(arenaMatch(pageURL))return inspectArena(pageURL,{open,inspect});const api=watchCardURL(pageURL);
  const playerHost=new URL(pageURL).hostname==='player.majed-koora.live';
- if(!api){try{return await inspect(pageURL)}catch(e){if(playerHost)throw Error('مشغّل ماجد ليس رابط فيديو مباشرًا وقد يرفض الوصول الخارجي (403). أدخل رابط صفحة المباراة الأصلي أو كود المزوّد أو رابط M3U8 متاحًا للاستضافة.');throw e;}}
+ if(!api){try{return await inspect(pageURL)}catch(e){if(playerHost)throw Error('مشغّل ماجد ليس رابط فيديو مباشرًا وقد يرفض الوصول الخارجي (403). أدخل رابط صفحة المباراة الأصلي أو كود المزوّد أو رابط M3U8 متاحًا للاستضافة.');if(/رابط صفحة|text\/html/i.test(e.message))return extractPageSource(pageURL,{open,inspect});throw e;}}
  const card=await majedWatch(pageURL,open),servers=serverId?card.servers.filter(s=>s.id===serverId):card.servers.slice(0,3);
  if(!servers.length)throw Error('المشغّل المختار لم يعد متاحًا في صفحة ماجد؛ حدّث قائمة المشغّلات واختر مجددًا');
  const failures=[];
@@ -120,6 +121,7 @@ function playerAuthorization(html){
 export async function resolveMajedPlayer(value,pageURL,{open=openPublic,inspect=inspectDirect}={}){
  const u=inputURL(value);if(u.protocol!=='https:'||u.hostname!=='player.majed-koora.live')throw Error('مشغّل غير مدعوم');
  if(!watchCardURL(pageURL))throw Error('أدخل صفحة المباراة الأصلية لتجهيز المشغّل');
+ if(u.pathname==='/v2/embed.php')return resolveMajedV2(u.href,pageURL,{open,inspect});
  const channel=u.searchParams.get('channel')||u.searchParams.get('id');
  if(!/^[A-Za-z0-9_-]{1,64}$/.test(channel||''))throw Error('قناة المشغّل غير صالحة');
  const ua='DshoofPlayer/3.0';
@@ -159,4 +161,33 @@ export async function inspectArena(pageURL,{open=openPublic,inspect=inspectDirec
  let error;
  for(const server of servers){try{const direct=await inspect(inputURL(server.url).href);return {...direct,sourcePage:pageURL,title:[selected.home_team?.name,selected.away_team?.name].filter(Boolean).join(' × ')||'أرينا · دشوف'};}catch(e){error=e;if(/\(403\)|\(401\)/.test(e.message))break;}}
  throw Error('تعذر استقبال فيديو أرينا على الاستضافة: '+String(error?.message||'المصدر ليس فيديو مباشرًا')+'. لم يتم استبدال البث بصفحة ويب.');
+}
+
+
+export async function resolveMajedV2(value,pageURL,{open=openPublic,inspect=inspectDirect}={}){
+ const u=inputURL(value);if(u.origin!=='https://player.majed-koora.live'||u.pathname!=='/v2/embed.php')throw Error('مشغّل ماجد الجديد غير صالح');
+ const headers={'User-Agent':'Mozilla/5.0',Referer:inputURL(pageURL).href};const page=await open(u.href,headers);
+ if(new URL(page.url||u.href).origin!==u.origin){page.response.destroy();throw Error('تغيّر عنوان مشغّل ماجد الجديد');}
+ const html=(await readLimited(page.response,524288)).toString('utf8');let boot;
+ for(const m of html.replace(/<!--[\s\S]*?(?:-->|$)/g,'').matchAll(/<body\b[^>]*>/gi)){const value=htmlAttributes(m[0]).get('data-majed-boot');if(value){try{boot=JSON.parse(value);}catch{}break;}}
+ if(!boot||!/^[-\w]{1,64}$/.test(boot.channel||'')||typeof boot.token!=='string'||boot.token.length>8192||boot.base!=='/v2')throw Error('تعذر قراءة تصريح مشغّل ماجد الجديد');
+ const api=new URL('/v2/api.php',u);api.searchParams.set('route','play/'+boot.channel);api.searchParams.set('t',boot.token);
+ const result=await open(api.href,{...headers,Referer:u.href,Accept:'application/json'});const config=JSON.parse((await readLimited(result.response,524288)).toString('utf8'));
+ const servers=Array.isArray(config.servers)?config.servers.slice(0,4):[];let last;
+ for(const server of servers){try{if(server.drm?.enabled||server.drm&&Object.keys(server.drm).some(k=>server.drm[k])||server.clearKeys||server.licenseUrl)throw Error('هذا المصدر يستخدم DRM غير مدعوم');const target=inputURL(server.url).href;const requestHeaders={'User-Agent':'Mozilla/5.0',Referer:u.href,Origin:u.origin};const direct=await inspect(target,requestHeaders);return {...direct,headers:requestHeaders,title:String(config.title||boot.title||'دشوف مباشر').slice(0,120)};}catch(e){last=e;}}
+ if(last?.statusCode){const e=Error('رفض مصدر المشغّل الجديد الاتصال ('+last.statusCode+')');e.statusCode=last.statusCode;throw e;}
+ throw Error(last?.message?.includes('DRM')?'المصدر محمي بـ DRM غير مدعوم':'لم يوفر المشغّل الجديد فيديو متاحًا يمكن استقباله');
+}
+export async function extractPageSource(value,{open=openPublic,inspect=inspectDirect,maxDepth=3}={}){
+ const original=inputURL(value).href,seen=new Set();let requests=0;
+ async function visit(url,parent,depth){if(depth>maxDepth||requests>=10||seen.has(url))throw Error('لم يمكن استخراج فيديو متاح من الصفحة');seen.add(url);requests++;
+  const headers={'User-Agent':'Mozilla/5.0',...(parent?{Referer:parent,Origin:new URL(parent).origin}:{})};const page=await open(inputURL(url).href,headers);const final=inputURL(page.url||url).href;const bytes=await readLimited(page.response,1048576);const text=bytes.toString('utf8');
+  if(text.trimStart().startsWith('#EXTM3U'))return {url:final,format:'hls',headers};
+  if(!/<(?:html|video|iframe|source|script|meta)\b/i.test(text))throw Error('الصفحة لم توفر مشغّلًا قابلًا للاستخراج');
+  const candidates=pageCandidates(text,final);
+  for(const target of candidates.direct){if(requests>=10)break;try{requests++;const direct=await inspect(inputURL(target).href,{'User-Agent':'Mozilla/5.0',Referer:final,Origin:new URL(final).origin});return {...direct,headers:{'User-Agent':'Mozilla/5.0',Referer:final,Origin:new URL(final).origin}};}catch{}}
+  for(const frame of candidates.frames){try{if(new URL(frame).hostname==='player.majed-koora.live'&&new URL(frame).pathname==='/v2/embed.php')return await resolveMajedV2(frame,final,{open,inspect});return await visit(frame,final,depth+1);}catch{}}
+  throw Error('لم يمكن استخراج فيديو متاح؛ قد تتطلب الصفحة تسجيل دخول أو DRM أو تشغيل JavaScript داخل متصفح');
+ }
+ return {...await visit(original,null,0),sourcePage:original};
 }

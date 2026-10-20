@@ -16,7 +16,8 @@ async function close(child){
  const done=once(child,'exit'),timer=setTimeout(()=>child.kill('SIGKILL'),9000);timer.unref();child.kill('SIGTERM');
  try{await done;}finally{clearTimeout(timer);}
 }
-const linuxOnly=process.platform!=='linux';
+let procNamespaceMatches=false;try{procNamespaceMatches=Number((await readFile('/proc/self/stat','utf8')).split(' ')[0])===process.pid;}catch{}
+const linuxOnly=process.platform!=='linux'||!procNamespaceMatches;
 
 test('server crashes cannot orphan encoders; bounded supervisor stop cleans only its own tree',{skip:linuxOnly,timeout:25000},async()=>{
  const directory=await mkdtemp(path.join(tmpdir(),'dshoof-supervisor-'));let supervisor,unrelated;const records=[];
@@ -69,4 +70,20 @@ test('stopping during crash backoff cancels the pending restart promptly',{skip:
   await pause(200);const started=Date.now();await close(supervisor);assert.ok(Date.now()-started<1000,'idle backoff must not delay shutdown');
   await pause(2200);assert.equal(await readFile(path.join(directory,'starts.txt'),'utf8'),'x');
  }finally{await close(supervisor);await rm(directory,{recursive:true,force:true});}
+});
+
+
+test('supervisor crash recovery stops old work and shutdown stops replacement work without relying on proc PID mapping',{skip:process.platform==='win32',timeout:45000},async()=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'dshoof-supervisor-heartbeat-'));let supervisor,unrelated;
+ const length=async name=>readFile(path.join(directory,name),'utf8').then(x=>x.length).catch(()=>0);
+ try{
+  await copyFile(new URL('./supervisor.mjs',import.meta.url),path.join(directory,'supervisor.mjs'));
+  await writeFile(path.join(directory,'beat.mjs'),`import {appendFileSync,writeFileSync}from'node:fs';const f=process.argv[2];process.on('SIGTERM',()=>{});writeFileSync(f,'ready');process.send?.('ready');process.disconnect?.();setInterval(()=>appendFileSync(f,'x'),40);`);
+  await writeFile(path.join(directory,'server.mjs'),`import {spawn}from'node:child_process';import {readFileSync,writeFileSync}from'node:fs';import path from'node:path';let run=1;try{run=Number(readFileSync('counter','utf8'))+1;}catch{}writeFileSync('counter',String(run));const p=spawn(process.execPath,['beat.mjs','heartbeat-'+run],{stdio:['ignore','ignore','ignore','ipc']});p.once('message',()=>{if(run===1)setTimeout(()=>process.exit(23),150);});process.on('SIGTERM',()=>{});setInterval(()=>{},1000);`);
+  unrelated=spawn(process.execPath,['-e',`const fs=require('node:fs');setInterval(()=>fs.appendFileSync(${JSON.stringify(path.join(directory,'unrelated'))},'x'),40)`],{stdio:'ignore'});
+  supervisor=spawn(process.execPath,['supervisor.mjs'],{cwd:directory,stdio:'ignore'});
+  await until(async()=>await length('heartbeat-2')>=8,25000);const old=await length('heartbeat-1'),current=await length('heartbeat-2'),other=await length('unrelated');await pause(250);
+  assert.equal(await length('heartbeat-1'),old,'crashed encoder no longer performs work');assert.ok(await length('heartbeat-2')>current,'replacement encoder performs work');assert.ok(await length('unrelated')>other,'unrelated process is untouched');
+  await close(supervisor);const stopped=await length('heartbeat-2'),otherBefore=await length('unrelated');await pause(350);assert.equal(await length('heartbeat-2'),stopped,'shutdown stops replacement work');assert.ok(await length('unrelated')>otherBefore);assert.equal(await length('counter'),1);assert.equal(await readFile(path.join(directory,'counter'),'utf8'),'2');
+ }finally{await close(supervisor);if(unrelated&&unrelated.exitCode===null){const exited=once(unrelated,'exit');unrelated.kill();await exited;}await rm(directory,{recursive:true,force:true});}
 });
