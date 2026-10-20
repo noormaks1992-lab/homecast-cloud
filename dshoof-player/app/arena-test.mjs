@@ -18,9 +18,10 @@ test('legacy embedded page selections are migrated to stopped direct-source mode
  assert.equal(status.ready,false);assert.equal(status.stopped,true);
  assert.equal((await fetch(origin+'/live/dshoof.m3u8',{headers})).status,410);
  assert.equal((await(await fetch(origin+'/api/status')).json()).selection,null);
- const csp=(await fetch(origin)).headers.get('content-security-policy');assert.match(csp,/frame-src https:\/\/www.youtube-nocookie.com;/);
+ const csp=(await fetch(origin)).headers.get('content-security-policy');assert.match(csp,/frame-src 'self' https:\/\/www.youtube-nocookie.com;/);
  const saved=JSON.parse(await readFile(path.join(dir,'state.json'),'utf8'));assert.equal(saved.stopped,true);assert.equal(saved.selection.kind,'url');
  await stop();await start();assert.equal((await(await fetch(origin+'/healthz')).json()).streamReady,false);
  assert.doesNotMatch(logs,/\[ingest\]/);
  }finally{await stop();await rm(dir,{recursive:true,force:true});}
 });
+
