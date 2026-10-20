@@ -1,77 +1,24 @@
 {
-  "version": "3.4.0-dual-channel.1",
-  "base": "f4126598adc60670ba008d72dfd140c1bfc232b2",
-  "status": "deployed 2026-10-20",
-  "preserve": [
-    "data",
-    ".env",
-    "owner",
-    "viewer",
-    "playlistAlias",
-    "members",
-    "invites"
-  ],
-  "changes": [
-    {
-      "path": "package-lock.json",
-      "beforeSha256": "1e65f36f75cb3b4ecf37562d8c427e4ccba0051777e33d223a8c966170e5fce6",
-      "afterSha256": "65c77018ce3297b71794ff8882093096b156a732fa79333a6e02ca82e89aa785",
-      "bytes": 19365
-    },
-    {
-      "path": "package.json",
-      "beforeSha256": "dde2c0c1cb203bd613da854594c903d97a3f8a217c0a82fb54989cd3ee96e1a3",
-      "afterSha256": "ccefdeebb7e521f84c7358839ade132f2532d0004df4a2248b9cfcbc99fca133",
-      "bytes": 1329
-    },
-    {
-      "path": "public/app.js",
-      "beforeSha256": "a4c975ec33f52bd219d359a11610c66c95ecb9cd94f98487387b736ddf5f79d3",
-      "afterSha256": "d163f5ac5e24becaea84c7cf47620a779e47fd53fb2c1a2376b8b96d3bcccacf",
-      "bytes": 65474
-    },
-    {
-      "path": "public/beta.js",
-      "beforeSha256": "7b1e19d4138545fdd0391eb9408d998507b727d3446469a752031d74e0f34b73",
-      "afterSha256": "24f6f36b6078ac16a6a61c116e66bc01e9f5fe779045c66cf61cca125af0b6ab",
-      "bytes": 20444
-    },
-    {
-      "path": "public/index.html",
-      "beforeSha256": "6905f586c91f8b561b38c8606d90f62bf816b9d284a917605f0c03cdfc60a626",
-      "afterSha256": "fcba061b2186a0f95f669a9dc14ffc366f5f1e14c0d80160ae27f3d811d2c61f",
-      "bytes": 44620
-    },
-    {
-      "path": "public/style.css",
-      "beforeSha256": "16b661613f0afc7e688b6340813e8b7fbc84bdb1de6202eb1095ce5c9fbd35a6",
-      "afterSha256": "42486b0831048ea632924ff49277d1bb3e17cf71d3d9018ed88ea8d5f517c0d6",
-      "bytes": 46634
-    },
-    {
-      "path": "server.mjs",
-      "beforeSha256": "4270547ec4949d92181cd92e49059dfeb79f5585acd93e1b8de696e1d2a6033c",
-      "afterSha256": "1efb0256ea169c2bbc45d8bc6eb4d8e70df90e4e5f1a1fa4e852907d73114cee",
-      "bytes": 41844
-    },
-    {
-      "path": "sources.mjs",
-      "beforeSha256": "169e288f090aa1c8e899f4f172933934f8c8a4f7b5505a0da874ca2a3639a599",
-      "afterSha256": "1edc682f6616451fb3173dfaf63e0f43e662a3a76e9c0ad812366a984cb5b6cf",
-      "bytes": 21621
-    },
-    {
-      "path": "test.mjs",
-      "beforeSha256": "6d1fc9cced8253686c46a2804c589b711c33e7a3d1fd3a26d60a2c446b167e97",
-      "afterSha256": "c0f8eee56502c7bc6e9ff2fa6ffb69afec2013da059b0470d35534da0649a8fb",
-      "bytes": 2394
-    },
-    {
-      "path": "page-extractor.mjs",
-      "beforeSha256": null,
-      "afterSha256": "589a58f08d0d79986692a0ad4f9a7a5e1b9a09d3bf427f4a62c657c7e474178e",
-      "bytes": 1758
-    }
-  ],
-  "snapshotGitBlobSha": "4864c709e48515c9485d502b0ed3c26939495a91"
+  "version": "3.5.0-live-player.1",
+  "status": "tested; pending deploy",
+  "files": {
+    "package.json": "54b0cb0cf458858ac4d38db363b698248d253c6a22bf04f1299c68f62a526ca9",
+    "package-lock.json": "fa6a3836f1fd7648e68180cdcf8db8f1c72c34c421b3b6d58f7a70f0e04357b4",
+    "server.mjs": "aafeb5c2d4db98a2edb68dbf4dd61fd5f39ca3d6aef01e1fa374270f50e13253",
+    "room.mjs": "e4ef9217cb247d4e4a0ddba8a50fc5268973135732c967fbed3dcd33cc6b359c",
+    "ip-policy.mjs": "b3fe224cb43aaaf533e58b08b532e091f4408f75d492ff83c9cf1ba47283d171",
+    "sources.mjs": "5935614c9bd6d4dddb3819db11b653b651c7b99665cac113c1c94803060c5add",
+    "page-extractor.mjs": "dd0f2b3f371e9337a77113ea58a03c2087e77e7b09a5250fee570961ec9db69b",
+    "public/app.js": "e358cd55e3fd6477a87ee717957a17666ab08aa2f87d67087ac1f569b587183a",
+    "public/index.html": "6bd42f66a8eca7f29064b1cf57accf4fc7784fc27684e00c9dc8e83467227c17",
+    "public/style.css": "ef1fb9d1194bf3c4f43827d952923952c6afe9564ceec52c6281146d644b3a6b",
+    "public/beta.js": "001aeac36f3240eab642fce5983c9783f79acbeeff8adb7343c34d85491cea64",
+    "public/pro.js": "83c03a27c53760ee92fc361b2857b33141e43bd2fa81073ecf099d824e77068f"
+  },
+  "tests": {
+    "passed": 166,
+    "skipped": 2,
+    "failed": 0
+  },
+  "snapshotGitBlobSha": "49ff4075037bf6591ff69468a68aa2a237b6b855"
 }
