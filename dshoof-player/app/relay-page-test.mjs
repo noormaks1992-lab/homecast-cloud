@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {Readable} from 'node:stream';import {inspectSource} from './sources.mjs';
+const page='https://www.arena8x.live/?arena_match=5795472&arena_date=2026-10-11';
+const open=async u=>{assert.equal(new URL(u).hostname,'arenaaliive22.site');return {response:Readable.from([Buffer.from(JSON.stringify({matches:[{id:5795472,home_team:{name:'A'},away_team:{name:'B'},servers:[{url:'https://media.example.test/live.css'},{url:'https://media.example.test/other.css'}]}]}))])};};
+test('Arena page resolves actual HLS and retains original page for renewal',async()=>{const r=await inspectSource(page,{open,inspect:async u=>({url:u,format:'hls'})});assert.equal(r.format,'hls');assert.equal(r.sourcePage,page);assert.equal(r.url,'https://media.example.test/live.css');assert.equal(r.title,'A × B');});
+test('Denied Arena source is not retried on another server and never becomes iframe',async()=>{let calls=0;await assert.rejects(inspectSource(page,{open,inspect:async()=>{calls++;throw Error('تعذر الوصول (403)');}}),/403/);assert.equal(calls,1);});

@@ -1,0 +1,365 @@
+const $=id=>document.getElementById(id);let state={},room={},hls=null,revision='',running=false,paused=false,refreshing=false,initialized=false,generation=0,recoveryTimer,sleepTimer,wakeLock,wantWake=false,warmController=null,playbackMonitor=null,pollTimer=null,pollFailures=0;const seen=new Set();let replyTo=null,lastTyping=0;let joining=false,chatSending=false,chatTogglePending=false,roomEvents=null,reconnectTimer=null,eventFailures=0,eventsConnected=false,pageLeaving=false;const chatNodes=new Map();let refreshRequest=null;let typingTimer,batteryPromise=null,sharedLocation=null,locationRequest=0,locationBusy=false,telemetryAllowed=true,privacyChanging=false,privacyQueue=Promise.resolve();
+const memberNodes=new Map(),memberActionPending=new Set();let memberPage=0,memberEditId=null,memberDetailsId=null,memberEditPending=false,memberDetailsSignature='';let hadOwnerControls=false;
+let noticeTimer;const notice=t=>{clearTimeout(noticeTimer);$('notice').textContent=t;$('notice').hidden=!t;if(t)noticeTimer=setTimeout(()=>{$('notice').hidden=true;},12000);};
+async function api(path,body){const response=await fetch(path,{...(body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(35000),cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('تعذر الاتصال بالخادم، حاول مجددًا');}if(!response.ok)throw Error(data.error||'تعذر إكمال الطلب');return data;}
+async function action(path,body){try{const r=await api(path,body);if(r.room)applyRoom(r.room);if(!r.room||!['/api/chat','/api/react','/api/poll','/api/chat/pin','/api/chat/clear','/api/settings'].includes(path))await refresh({afterCurrent:true});return r;}catch(e){notice(e.message);return null;}}
+function button(text,fn,cls){const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;if(cls)b.className=cls;return b;}
+function text(tag,value,cls){const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;}
+function controlLabel(id,value,iconName){const control=$(id);if(!control)return;let label=control.querySelector('span');if(label)label.textContent=value;else if(control.querySelector('svg')){label=text('span',value);control.append(label);}else control.textContent=value;const use=control.querySelector('use');if(use&&iconName)use.setAttribute('href','/club-icons.svg#'+iconName);}
+async function copy(value){try{await navigator.clipboard.writeText(value);notice('تم نسخ الرابط');}catch{notice('تعذر النسخ التلقائي؛ انسخ الرابط من خانته');}}
+
+function needsRegistration(){return !state.canControl&&(state.registrationRequired===true||state.authenticated===false);}
+function publicRoomURL(){try{const url=new URL(state.publicRoomURL||'/',location.origin);return (url.origin===location.origin?url.origin:location.origin)+'/';}catch{return location.origin+'/';}}
+function renderPublicEntry(){
+ const link=$('public-room-link');if(link)link.value=publicRoomURL();
+ const dialog=$('welcome-dialog'),required=needsRegistration();
+ if($('welcome-close')){$('welcome-close').hidden=required;$('welcome-close').disabled=required;}
+ if($('welcome-join-open'))$('welcome-join-open').hidden=!required;
+ if(!dialog)return;
+ if(required&&!dialog.open){if(dialog.showModal)dialog.showModal();else{dialog.hidden=false;dialog.open=true;}$('welcome-username')?.focus();}
+ else if(!required&&dialog.open){if(dialog.close)dialog.close();else{dialog.hidden=true;dialog.open=false;}}
+}
+async function joinRoom(event){
+ event.preventDefault();if(joining)return;
+ joining=true;$('welcome-submit').disabled=true;$('welcome-error').textContent='';$('welcome-error').hidden=true;
+ try{await api('/api/join',{username:$('welcome-username').value.trim(),name:$('welcome-name').value.trim(),avatar:$('welcome-avatar').value});await refresh({afterCurrent:true});if(needsRegistration())throw Error('تعذر تثبيت جلستك؛ حاول مرة أخرى.');report();}
+ catch(error){$('welcome-error').textContent=error.message;$('welcome-error').hidden=false;}
+ finally{joining=false;$('welcome-submit').disabled=false;}
+}
+function mergeRoom(update){
+ if(!update||typeof update!=='object'||Array.isArray(update))return false;
+ const reset=!!update.instanceId&&!!room.instanceId&&update.instanceId!==room.instanceId;
+ if(!reset&&Number.isFinite(update.version)&&Number.isFinite(room.version)&&update.version<room.version)return false;
+ const next=reset?{...update}:{...room,...update};
+ if(update.messagesDelta&&!Object.hasOwn(update,'messages')){
+  const removed=new Set(update.messagesDelta.removed||[]),messages=new Map((room.messages||[]).filter(message=>!removed.has(message.id)).map(message=>[message.id,message]));
+  for(const message of update.messagesDelta.added||[])if(message&&typeof message.id==='string'&&!removed.has(message.id))messages.set(message.id,message);
+  next.messages=[...messages.values()].slice(-100);
+ }
+ if(Object.hasOwn(update,'messages'))next.messages=[...new Map((update.messages||[]).filter(message=>message&&typeof message.id==='string').map(message=>[message.id,message])).values()];
+ delete next.messagesDelta;room=next;state.room=room;
+ if(state.profile)state.profile={...state.profile,...(room.name?{name:room.name}:{}),...(room.username?{username:room.username}:{}),...(room.avatar?{avatar:room.avatar}:{})};
+ return true;
+}
+function applyRoom(update){
+ if(!mergeRoom(update))return;
+ renderRoom();if(Object.hasOwn(update,'messages')||update.messagesDelta)renderChat();
+ if(Object.hasOwn(update,'poll'))renderPoll();
+ if(Object.hasOwn(update,'reactionNames')||Object.hasOwn(update,'myReactions'))renderReactionNames();
+}
+function stopRoomEvents(){clearTimeout(reconnectTimer);reconnectTimer=null;const previous=roomEvents;roomEvents=null;eventsConnected=false;previous?.close();}
+function connectRoomEvents(){
+ if(pageLeaving||!state.authorized||needsRegistration()||!window.EventSource||roomEvents||reconnectTimer||navigator.onLine===false)return;
+ const stream=new window.EventSource('/api/events');roomEvents=stream;
+ stream.onopen=()=>{if(roomEvents!==stream)return;eventsConnected=true;eventFailures=0;};
+ stream.addEventListener('room',event=>{if(roomEvents!==stream||pageLeaving)return;try{const value=JSON.parse(event.data),update=value.room||value;applyRoom(update);}catch{}});
+ stream.onerror=()=>{if(roomEvents!==stream)return;stream.close();roomEvents=null;eventsConnected=false;if(pageLeaving||!state.authorized)return;const delay=Math.max(document.hidden?15000:1000,Math.min(30000,1000*2**Math.min(eventFailures++,5)));reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectRoomEvents();},delay);};
+}
+function statusPollDelay(){const mode=$('network-mode').value,base=document.hidden?30000:eventsConnected?(mode==='emergency'?30000:mode==='weak'?15000:10000):(mode==='emergency'?15000:mode==='weak'?12000:10000);return Math.min(60000,base*2**Math.min(pollFailures,3));}
+async function pollStatus(){if(pageLeaving)return;await refresh();if(!pageLeaving)pollTimer=setTimeout(pollStatus,statusPollDelay());}
+function watchDuration(seconds){const value=Math.max(0,Number(seconds)||0);if(value<60)return Math.round(value)+' ثانية';if(value<3600)return Math.floor(value/60)+' دقيقة';return Math.floor(value/3600)+':'+String(Math.floor(value%3600/60)).padStart(2,'0')+' ساعة';}
+function renderOwnerAnalytics(){
+ const panel=$('owner-analytics');if(panel)panel.hidden=!state.canControl||!!window.dshoofStudio&&(document.body.dataset.page!=='admin'||document.body.dataset.adminTab!=='analytics');const fields={'analytics-current-viewers':state.analytics?.current?.unique,'analytics-today-viewers':state.analytics?.day?.unique,'analytics-total-viewers':state.analytics?.total?.unique,'analytics-total-hours':(Math.max(0,Number(state.analytics?.total?.watchSeconds)||0)/3600).toFixed(1)};
+ for(const [id,value]of Object.entries(fields))if($(id))$(id).textContent=state.canControl?String(value??0):'';
+}
+function memberInfo(member){return member.info||(member.connections||[]).find(connection=>connection.info)?.info||{};}
+function memberDate(value){return value?new Date(value).toLocaleString('ar-IQ'):'غير متاح';}
+function showMemberDetails(member){
+ if(!state.canControl)return;const dialog=$('viewer-details-dialog'),body=$('viewer-details-body');if(!dialog||!body)return;
+ memberDetailsId=member.id||null;memberDetailsSignature=JSON.stringify(member);
+ $('viewer-details-title').textContent=member.name||member.username||'تفاصيل العضو';body.replaceChildren();const info=memberInfo(member),client=info.clientInfo||info,report=member.report||(member.connections||[]).find(connection=>connection.report)?.report||{};
+ const row=(label,value)=>{const item=text('div','','member-detail');item.append(text('strong',label),text('span',value===undefined||value===null||value===''?'غير متاح':String(value)));body.append(item);};
+ row('اسم المستخدم',member.username?'@'+member.username:null);row('الاسم',member.name);row('تاريخ الانضمام',memberDate(member.joinedAt||member.createdAt));row('آخر تقرير',memberDate(report.at||info.at));row('الحالة',member.revoked?'محظور':member.online?'متصل':'غير متصل');
+ row('الجهاز',client.device);row('المتصفح',client.browser);row('نظام التشغيل',client.os);row('عنوان الشبكة',info.ip);row('مصدر عنوان الشبكة',({'socket':'عنوان الاتصال بالخادم (قد يكون بروكسي الاستضافة)','trusted-proxy':'عنوان يمر عبر بروكسي موثوق'})[info.ipSource]);row('الشاشة',client.screen?client.screen.width+' × '+client.screen.height:null);row('البطارية',client.battery?Math.round(client.battery.level)+'%'+(client.battery.charging?' · تشحن':''):null);
+ row('نوع الاتصال',client.network?.effectiveType||client.network?.type);row('تقدير المتصفح للاتصال',Number.isFinite(client.network?.downlink)?client.network.downlink+' ميغابت/ث (تقدير وليس اختبار سرعة)':null);row('تقدير زمن الاستجابة',Number.isFinite(client.network?.rtt)?client.network.rtt+' مللي ثانية':null);row('توفير البيانات',client.network?client.network.saveData?'مفعّل':'غير مفعّل':null);
+ row('شركة الإنترنت والباقه','غير متاحة من المتصفح');row('وصف الاتصال الذي اختاره العضو',({fiber:'ألياف ضوئية',mobile:'بيانات هاتف',dsl:'DSL',wifi:'واي فاي'})[client.subscription]);row('المنطقة الزمنية',client.timezone);row('اللغة',client.locale);row('الموقع الذي شاركه العضو',client.location?client.location.latitude+', '+client.location.longitude+' · دقة الجهاز '+Math.round(client.location.accuracy||0)+' م':null);row('مخزون الفيديو',Number.isFinite(report.buffer)?Math.round(report.buffer)+' ثوانٍ':null);
+ const analytics=member.analytics;if(analytics){row('مدة المشاهدة في البث الحالي · تقريبية',watchDuration(analytics.currentSeconds));row('مدة المشاهدة اليوم · تقريبية',watchDuration(analytics.todaySeconds));row('إجمالي مدة المشاهدة · تقريبية',watchDuration(analytics.totalSeconds));const sessions=Array.isArray(analytics.sessions)?analytics.sessions.slice(-20).reverse():[];if(sessions.length){body.append(text('h3','جلسات المشاهدة الأخيرة · مدد تقريبية'));const list=text('ul','','member-sessions');for(const session of sessions)list.append(text('li',(session.broadcastTitle||'بث دشوف')+' · '+memberDate(session.start)+' — '+(session.end?memberDate(session.end):'قيد المشاهدة')+' · '+watchDuration(session.seconds)));body.append(list);}}
+ const place=client.location;if(place&&Number.isFinite(place.latitude)&&Number.isFinite(place.longitude)&&Math.abs(place.latitude)<=90&&Math.abs(place.longitude)<=180){const map=text('a','عرض الموقع المشترك على الخريطة','button');map.href='https://www.openstreetmap.org/?mlat='+place.latitude+'&mlon='+place.longitude+'#map=12/'+place.latitude+'/'+place.longitude;map.target='_blank';map.rel='noopener noreferrer';body.append(map);}
+ if(!dialog.open)dialog.showModal?.();
+}
+function currentMember(id){return state.canControl?(state.members||[]).find(member=>member.id===id):undefined;}
+function filteredMembers(){
+ if(!state.canControl)return [];const query=($('members-search')?.value||'').normalize('NFKC').trim().toLocaleLowerCase(),filter=$('members-filter')?.value||'all';
+ return (state.members||[]).filter(member=>(!query||[member.username,member.name,member.displayName].some(value=>String(value||'').normalize('NFKC').toLocaleLowerCase().includes(query)))&&(filter==='online'?!!member.online&&!member.revoked:filter==='muted'?!!member.muted:filter==='blocked'?!!member.revoked:true));
+}
+function memberFocus(id){const entry=memberNodes.get(id),target=entry?.node.parentNode===$('members-list')?entry.title:$('members-heading')||$('members-search');target?.focus();}
+function closeMemberDetails(){const dialog=$('viewer-details-dialog');if(dialog?.open)dialog.close();}
+function closeMemberEditor(){if(memberEditPending)return;const dialog=$('member-edit-dialog');if(dialog?.open)dialog.close();}
+function openMemberEditor(id){
+ const member=currentMember(id),dialog=$('member-edit-dialog');if(!member||!dialog||memberEditPending)return;memberEditId=id;
+ for(const [field,value]of Object.entries({id,username:member.username||'',name:member.name||member.displayName||'',avatar:member.avatar||'purple',role:['viewer','stream','moderator'].includes(member.role)?member.role:'viewer'}))if($('member-edit-'+field))$('member-edit-'+field).value=value;
+ $('member-edit-error').textContent='';$('member-edit-error').hidden=true;if(!dialog.open)dialog.showModal?.();$('member-edit-username')?.focus();
+}
+async function submitMemberEdit(event){
+ event.preventDefault();if(!state.canControl||memberEditPending||!memberEditId||!currentMember(memberEditId))return;const error=$('member-edit-error');
+ const username=$('member-edit-username').value.normalize('NFKC').trim().toLowerCase(),name=$('member-edit-name').value.normalize('NFKC').trim(),avatar=$('member-edit-avatar').value,role=$('member-edit-role').value;
+ if(!/^[a-z0-9_]{3,24}$/.test(username)||[...name].length<2||[...name].length>32||!['purple','gold','blue','green'].includes(avatar)||!['viewer','stream','moderator'].includes(role)){
+  error.textContent='تحقق من الاسم واسم المستخدم والصورة والصلاحية المختارة.';error.hidden=false;return;
+ }
+ const id=memberEditId;memberEditPending=true;$('member-edit-submit').disabled=true;$('member-edit-close').disabled=true;error.textContent='';error.hidden=true;
+ try{const result=await api('/api/members',{action:'update',id,username,name,avatar,role});if(result.room)applyRoom(result.room);await refresh({afterCurrent:true});if(memberEditId===id)$('member-edit-dialog').close();}
+ catch(failure){if(state.canControl&&memberEditId===id){error.textContent=failure.message;error.hidden=false;}}
+ finally{memberEditPending=false;$('member-edit-submit').disabled=false;$('member-edit-close').disabled=false;}
+}
+async function changeMember(id,operation){
+ if(!currentMember(id)||memberActionPending.has(id))return;memberActionPending.add(id);renderMembers();
+ try{const result=await api(operation==='restore'?'/api/members':'/api/revoke',{id,action:operation});if(result.room)applyRoom(result.room);await refresh({afterCurrent:true});}
+ catch(error){notice(error.message);}finally{memberActionPending.delete(id);renderMembers();}
+}
+async function restoreMember(id){const member=currentMember(id);if(!member?.revoked)return;return changeMember(id,'restore');}
+function changeMemberPage(step){if(!state.canControl)return;memberPage+=step;renderMembers();}
+function clearOwnerFields(){
+ for(const id of ['playlist','source-url','code','source-title','setting-name','setting-announcement'])if($(id))$(id).value='';
+ for(const id of ['download-playlist','download-qualities'])$(id)?.removeAttribute('href');for(const id of ['quality-links','history'])$(id)?.replaceChildren();
+ for(const id of ['selected-title','selected-majed-server','server-state','viewers','quality-note'])if($(id))$(id).textContent='';initialized=false;
+ if(typeof invalidateSourceOptions==='function')invalidateSourceOptions();
+}
+function clearMemberControls(){
+ const hadPrivateDialog=$('viewer-details-dialog')?.open||$('member-edit-dialog')?.open;memberDetailsId=null;memberDetailsSignature='';memberEditId=null;
+ if($('viewer-details-dialog')?.open)$('viewer-details-dialog').close();if($('member-edit-dialog')?.open)$('member-edit-dialog').close();$('viewer-details-body')?.replaceChildren();$('members-list')?.replaceChildren();memberNodes.clear();memberPage=0;
+ for(const id of ['member-edit-id','member-edit-username','member-edit-name'])if($(id))$(id).value='';if($('member-edit-error')){$('member-edit-error').textContent='';$('member-edit-error').hidden=true;}if(hadPrivateDialog)$('viewer-name')?.focus();
+}
+function renderMembers(){
+ const target=$('members-list');if(!target)return;if(!state.canControl){clearMemberControls();return;}
+ const all=state.members||[],filtered=filteredMembers(),pages=Math.max(1,Math.ceil(filtered.length/12));memberPage=Math.max(0,Math.min(memberPage,pages-1));const visible=filtered.slice(memberPage*12,memberPage*12+12),visibleIds=new Set(visible.map(member=>member.id)),allIds=new Set(all.map(member=>member.id));
+ for(const [id,entry]of memberNodes){if(!visibleIds.has(id))entry.node.remove();if(!allIds.has(id))memberNodes.delete(id);}
+ visible.forEach((member,index)=>{
+  const id=member.id;let entry=memberNodes.get(id);if(!entry){
+   const node=text('div','','member-card'),avatar=text('span','','member-avatar'),open=()=>{const latest=currentMember(id);if(latest)showMemberDetails(latest);},title=button('',open,'member-title'),meta=text('small','','member-meta'),report=text('small','','member-meta'),actions=text('div','','member-actions');
+   const details=button('تفاصيل العضو',open),edit=button('تعديل الحساب',()=>openMemberEditor(id)),mute=button('',()=>changeMember(id,'mute')),block=button('حظر العضو',()=>changeMember(id,'revoke')),restore=button('إلغاء الحظر',()=>restoreMember(id));actions.append(details,edit,mute,block,restore);node.append(avatar,title,meta,report,actions);node.dataset.memberId=id;entry={node,avatar,title,meta,report,details,edit,mute,block,restore};memberNodes.set(id,entry);
+  }
+  const info=memberInfo(member);entry.avatar.textContent=[...(member.name||member.username||'د')][0];entry.avatar.dataset.color=member.avatar||'purple';entry.title.textContent=member.displayName||member.name||member.username||'عضو';entry.meta.textContent='@'+(member.username||'')+' · '+(member.revoked?'محظور':member.online?'متصل':'غير متصل')+' · '+({viewer:'مشاهد',stream:'إدارة البث',moderator:'مشرف الدردشة',observer:'مشاهد'})[member.role||'viewer'];entry.report.textContent='انضم '+memberDate(member.joinedAt||member.createdAt)+' · '+(info.clientInfo?.device||info.device||'الجهاز غير متاح')+' · آخر تقرير '+memberDate(member.report?.at||info.at);entry.mute.textContent=member.muted?'السماح بالدردشة':'كتم الدردشة';entry.block.hidden=!!member.revoked;entry.restore.hidden=!member.revoked;
+  for(const control of [entry.edit,entry.mute,entry.block,entry.restore])control.disabled=memberActionPending.has(id);if(target.children[index]!==entry.node)target.insertBefore(entry.node,target.children[index]||null);
+ });
+ if($('members-page-state'))$('members-page-state').textContent='صفحة '+(memberPage+1)+' من '+pages+' · '+filtered.length+' حساب';if($('members-prev'))$('members-prev').disabled=memberPage===0;if($('members-next'))$('members-next').disabled=memberPage>=pages-1;
+ if(memberDetailsId&&$('viewer-details-dialog')?.open){const latest=currentMember(memberDetailsId);if(!latest)closeMemberDetails();else if(JSON.stringify(latest)!==memberDetailsSignature)showMemberDetails(latest);}
+}
+function setupMemberControls(){
+ if($('members-search'))$('members-search').oninput=()=>{memberPage=0;renderMembers();};if($('members-filter'))$('members-filter').onchange=()=>{memberPage=0;renderMembers();};
+ if($('members-prev'))$('members-prev').onclick=()=>changeMemberPage(-1);if($('members-next'))$('members-next').onclick=()=>changeMemberPage(1);
+ if($('member-edit-form'))$('member-edit-form').onsubmit=submitMemberEdit;if($('member-edit-close'))$('member-edit-close').onclick=closeMemberEditor;if($('viewer-details-close'))$('viewer-details-close').onclick=closeMemberDetails;
+ $('member-edit-dialog')?.addEventListener('cancel',event=>{if(memberEditPending)event.preventDefault();});$('member-edit-dialog')?.addEventListener('close',()=>{const id=memberEditId;memberEditId=null;if(state.canControl)memberFocus(id);});
+ $('viewer-details-dialog')?.addEventListener('close',()=>{const id=memberDetailsId;memberDetailsId=null;memberDetailsSignature='';if(state.canControl)memberFocus(id);});
+ document.querySelector('.admin-section-nav a[href="#owner-chat-controls"]')?.addEventListener('click',()=>{if(!state.canControl)return;window.dshoofStudio?.showChat(false);$('owner-chat-controls')?.scrollIntoView({behavior:'smooth',block:'center'});$('chat-toggle')?.focus();});
+}
+function renderRoom(){
+ renderOwnerAnalytics();const settings=room.settings||{},profile=state.profile||{},allowed=!!state.authorized&&!needsRegistration(),chat=!!settings.chatEnabled;
+ if(state.canControl)hadOwnerControls=true;else{clearMemberControls();if(hadOwnerControls){hadOwnerControls=false;clearOwnerFields();}}
+ $('room-name').textContent=settings.name||'لمّة دشوف';$('audience').hidden=!state.canControl;$('audience').textContent=state.canControl?(room.online||0)+' أصدقاء متصلين':'';$('viewer-roster').hidden=!state.canControl;
+ $('viewer-name').textContent=room.name||profile.name||'ضيف دشوف';$('viewer-avatar').textContent=[...(room.name||profile.name||'د')][0];$('viewer-avatar').dataset.color=room.avatar||profile.avatar||'purple';$('edit-profile').disabled=!allowed;
+ $('viewer-roster').replaceChildren(...(state.canControl?room.roster||[]:[]).map(person=>text('span',person.name,'roster-chip')));$('typing-indicator').textContent=(room.typing||[]).length?room.typing.join('، ')+' يكتب…':'';clearTimeout(typingTimer);if(room.typing?.length)typingTimer=setTimeout(()=>{room.typing=[];$('typing-indicator').textContent='';},5000);if($('owner-chat-controls'))$('owner-chat-controls').hidden=!state.canControl;
+ $('pinned-message').hidden=!room.pinned||(window.dshoofPro&&!window.dshoofPro.chatAllowed(room.pinned));$('pinned-message').textContent=room.pinned?'📌 '+room.pinned.name+' · '+room.pinned.text:'';
+ $('announcement').textContent=settings.announcement||'';$('announcement').hidden=!settings.announcement;
+ $('chat-state').textContent=!chat?'الدردشة مغلقة من المضيف':room.muted?'أوقف المضيف مشاركتك':'تحدث مع أصدقائك';$('chat-text').disabled=!allowed||!chat||room.muted;$('send-chat').disabled=!allowed||!chat||room.muted||chatSending;
+ if($('chat-toggle')){$('chat-toggle').hidden=!state.canControl;$('chat-toggle').disabled=!state.canControl||chatTogglePending;$('chat-toggle').setAttribute('aria-pressed',String(chat));$('chat-toggle').textContent=chat?'إغلاق الدردشة':'فتح الدردشة';}
+ if($('chat-toggle-status'))$('chat-toggle-status').textContent=chat?'الدردشة مفتوحة للجميع':'الدردشة مغلقة؛ يبقى البث يعمل';
+ $('reactions').hidden=!settings.reactionsEnabled;for(const type of ['like','love','heart'])$('count-'+type).textContent=room.reactions?.[type]||0;
+ for(const event of room.events||[]){if(seen.has(event.id)||Date.now()-event.at>4000||document.hidden||document.body.classList.contains('data-saver')||document.body.classList.contains('motion-off'))continue;seen.add(event.id);const node=text('span',{like:'👍',love:'😍',heart:'💜'}[event.type],'float-reaction');node.style.left=(15+Math.random()*70)+'%';$('reaction-cloud').append(node);setTimeout(()=>node.remove(),3000);}if(seen.size>200)seen.clear();
+ $('start').hidden=!state.ready||!allowed;
+}
+async function toggleChat(){if(!state.canControl||chatTogglePending)return;chatTogglePending=true;renderRoom();try{const result=await api('/api/settings',{chatEnabled:!room.settings?.chatEnabled});if(result.room)applyRoom(result.room);else await refresh();}catch(error){notice(error.message);}finally{chatTogglePending=false;renderRoom();}}
+async function sendChat(event){
+ event.preventDefault();if(chatSending||!state.authorized||needsRegistration()||!room.settings?.chatEnabled||room.muted)return;
+ const input=$('chat-text'),draft=input.value;if(!draft.trim())return;const replying=replyTo;
+ chatSending=true;renderRoom();
+ try{const result=await api('/api/chat',{text:draft,spoiler:$('spoiler').checked,replyTo:replying,videoAt:window.dshoofPro?.wall(),stand:$('pro-stand')?.value||'all'});if(result.room)applyRoom(result.room);else await refresh();if(input.value===draft)input.value='';if(replyTo===replying){replyTo=null;$('reply-preview').hidden=true;}}
+ catch(error){notice(error.message);}
+ finally{chatSending=false;renderRoom();}
+}
+
+function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;running=false;}
+function playbackURL(){if($('network-mode').value==='emergency')return '/emergency/dshoof.m3u8';if($('network-mode').value==='weak')return '/weak/dshoof.m3u8';const q=$('quality-select').value;return q==='highest'?'/live/dshoof.m3u8':'/quality/'+(q==='weak'?'auto':q)+'.m3u8';}
+function playbackRevision(){return String(state.selection?.updatedAt||'')+':'+state.selection?.kind+':'+$('network-mode').value+($('network-mode').value==='weak'?':'+state.weakProfile:'');}
+function watch(){
+ if(!state.authorized||state.authenticated===false||!state.ready||state.stopped)return;
+ stopLocal();paused=false;running=true;const v=$('video'),g=generation;$('waiting').hidden=true;
+ if(state.selection?.kind==='youtube'){v.hidden=true;$('youtube').hidden=false;$('youtube').src='https://www.youtube-nocookie.com/embed/'+state.selection.videoId+'?autoplay=1&playsinline=1&origin='+encodeURIComponent(location.origin);return;}
+ v.hidden=false;
+ const network=$('network-mode').value,emergency=network==='emergency',mode=['weak','emergency'].includes(network)?'weak':$('playback-mode').value,streamURL=playbackURL(),config=mode==='weak'?{maxBufferLength:emergency?32:24,liveSyncDuration:90,liveMaxLatencyDuration:160,maxLiveSyncPlaybackRate:1}:mode==='stable'?{maxBufferLength:60,liveSyncDurationCount:5}:mode==='close'?{maxBufferLength:20,liveSyncDurationCount:3}:{maxBufferLength:40,liveSyncDurationCount:4};
+ v.playbackRate=1;
+ const play=()=>v.play().catch(()=>notice('اضغط تشغيل للسماح للمتصفح بعرض الفيديو'));
+ const alignStartup=()=>{if(!v.buffered?.length||buffer()>0)return;for(let i=0;i<v.buffered.length;i++){const start=v.buffered.start(i),end=v.buffered.end(i);if(end-start>=3){try{v.currentTime=start+.01;}catch{}return;}}};
+ if(window.Hls?.isSupported()){
+  const p=new Hls({...config,maxMaxBufferLength:mode==='weak'?(emergency?48:40):90,maxBufferSize:(mode==='weak'?(emergency?2:6):64)*1024*1024,backBufferLength:mode==='weak'?8:20,lowLatencyMode:false,startFragPrefetch:mode!=='weak',testBandwidth:mode!=='weak',fragLoadingTimeOut:mode==='weak'?30000:20000});hls=p;
+  let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0,repairs=0,isLive=false;
+  let awaitingBuffer=mode==='weak';
+  const resumeBuffered=()=>{if(!awaitingBuffer||g!==generation||paused)return;alignStartup();const required=3;if(buffer()>=required){awaitingBuffer=false;play();}else $('status').textContent='نجهّز مشاهدة أوفر: '+Math.floor(buffer())+' / '+required+' ثوانٍ';};
+  p.on(Hls.Events.MANIFEST_PARSED,()=>{if(mode!=='weak')play();else resumeBuffered();});
+  p.on(Hls.Events.LEVEL_LOADED,(_,d)=>{isLive=!!d.details?.live;});
+  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;resumeBuffered();});
+  p.on(Hls.Events.ERROR,(_,d)=>{
+   if(!d.fatal||g!==generation||paused||state.stopped)return;
+   clearTimeout(recoveryTimer);
+   if(mode==='weak'&&['manifestLoadError','manifestLoadTimeOut','manifestParsingError'].includes(d.details)){
+    $('status').textContent='ننتظر تجهيز النسخة المضغوطة على السيرفر…';
+    recoveryTimer=setTimeout(()=>{if(g===generation&&!paused&&!state.stopped)p.loadSource(streamURL);},Math.min(10000,2000*2**Math.min(errors++,3)));return;
+   }
+   if(errors++<3){
+    if(d.type===Hls.ErrorTypes.MEDIA_ERROR)p.recoverMediaError();
+    else recoveryTimer=setTimeout(()=>{if(g===generation&&!paused)p.startLoad();},Math.min(4000,errors*1000));
+   }else{errors=0;recoveryTimer=setTimeout(()=>{if(g===generation&&!paused&&state.ready)p.loadSource(streamURL);},3000);}
+  });
+  // Preserve buffered video while retrying. Never reload a paused or completed file.
+  const monitor=setInterval(()=>{
+   if(g!==generation){clearInterval(monitor);return;}
+   if(paused||v.paused||v.seeking||!isLive||state.stopped){lastProgress=Date.now();return;}
+   if(Math.abs(v.currentTime-lastTime)>.1){lastTime=v.currentTime;lastProgress=Date.now();repairs=0;return;}
+   const now=Date.now();if(now-lastProgress<6000||now-lastRepair<8000)return;
+   lastRepair=now;repairs++;$('status').textContent='نُحدّث مقاطع البث…';
+   if(mode==='weak'){p.startLoad();$('status').textContent='نجمع مقاطع إضافية للنت الضعيف…';return;}
+   const target=p.liveSyncPosition;
+   if(buffer()<1&&Number.isFinite(target)&&target>v.currentTime+1)v.currentTime=target;
+   if(repairs>=2&&state.ready){p.loadSource(streamURL);repairs=0;}else p.startLoad(-1);
+  },2000);playbackMonitor=monitor;
+  p.attachMedia(v);
+  if(mode==='weak'){
+   // Build a real delayed window before HLS chooses its starting fragment.
+   const controller=new AbortController();warmController=controller;const required=emergency?8:4;
+   const warm=async()=>{if(g!==generation||paused||state.stopped||controller.signal.aborted)return;try{const r=await fetch(streamURL,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)])});const text=r.ok?await r.text():'';if(g!==generation||paused||state.stopped||controller.signal.aborted)return;const seconds=[...text.matchAll(/#EXTINF:([0-9.]+)/g)].reduce((n,m)=>n+Number(m[1]),0);if(seconds>=required){p.loadSource(streamURL);return;}$('status').textContent='تجهيز البث الموفر: '+Math.floor(seconds)+' / '+required+' ثوانٍ';}catch{if(g!==generation||paused||state.stopped||controller.signal.aborted)return;}$('waiting-text').textContent='نجهّز نسخة أخف لاتصالك';recoveryTimer=setTimeout(warm,2000);};warm();
+  }else p.loadSource(streamURL);
+ }else if(v.canPlayType('application/vnd.apple.mpegurl')){
+  // Native HLS (Safari) needs the same cold-start preparation and bounded recovery.
+  const controller=new AbortController();warmController=controller;let failures=0,awaiting=mode==='weak';
+  const current=()=>g===generation&&!paused&&!state.stopped&&!controller.signal.aborted;
+  const resume=()=>{if(current()&&awaiting)alignStartup();if(current()&&awaiting&&buffer()>=3){awaiting=false;play();}};
+  const load=()=>{if(!current())return;v.preload='auto';v.src=streamURL;v.load();if(mode!=='weak')play();};
+  const prepare=async()=>{if(!current())return;try{const r=await fetch(streamURL,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)])});const manifest=r.ok?await r.text():'';if(!current())return;const seconds=[...manifest.matchAll(/#EXTINF:([0-9.]+)/g)].reduce((n,m)=>n+Number(m[1]),0);if(seconds>=(emergency?8:4)){load();return;}$('status').textContent='نجهّز النسخة الخفيفة للمشاهدة…';}catch{if(!current())return;}recoveryTimer=setTimeout(prepare,2000);};
+  v.onprogress=resume;v.oncanplay=resume;v.onerror=()=>{if(!current())return;awaiting=mode==='weak';$('status').textContent=mode==='weak'?'نحاول استعادة البث الخفيف…':'نحاول استعادة البث…';clearTimeout(recoveryTimer);recoveryTimer=setTimeout(mode==='weak'?prepare:load,Math.min(15000,2000*2**Math.min(failures++,3)));};
+  playbackMonitor=setInterval(()=>{if(!current())return;resume();},1000);
+  if(mode==='weak')prepare();else load();
+ }
+ else{running=false;paused=true;$('waiting').hidden=false;notice('هذا المتصفح لا يدعم تشغيل HLS؛ استخدم رابط M3U في مشغل متوافق');}
+}
+function buffer(){const v=$('video');for(let i=0;i<v.buffered.length;i++)if(v.currentTime>=v.buffered.start(i)&&v.currentTime<=v.buffered.end(i))return v.buffered.end(i)-v.currentTime;return 0;}
+function renderChat(){
+ if(!room.messages)return;const log=$('chat-log'),previousScroll=log.scrollTop,near=log.scrollHeight-log.scrollTop-log.clientHeight<80;
+ const messages=[...new Map(room.messages.filter(message=>message&&typeof message.id==='string'&&(!window.dshoofPro||window.dshoofPro.chatAllowed(message))).map(message=>[message.id,message])).values()],wanted=new Set(messages.map(message=>message.id));
+ for(const [id,entry]of chatNodes)if(!wanted.has(id)){entry.node.remove();chatNodes.delete(id);}
+ messages.forEach((message,index)=>{
+  const signature=JSON.stringify([message.name,message.owner,message.text,message.at,message.reply,message.spoiler,!!state.canControl,room.role]);let entry=chatNodes.get(message.id);
+  if(!entry||entry.signature!==signature){
+   const box=text('div','','message'+(message.owner?' owner':'')),head=text('div',message.name+' · '+new Date(message.at).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}),'message-top');box.dataset.messageId=message.id;
+   if(state.canControl||room.role==='moderator')head.append(button('حذف',()=>action('/api/chat/clear',{id:message.id}),'delete'));
+   head.append(button('رد',()=>{replyTo=message.id;$('reply-preview').hidden=false;$('reply-preview').textContent='رد على '+message.name+': '+message.text.slice(0,70);$('chat-text').focus();},'message-reply'));
+   if(state.canControl||room.role==='moderator')head.append(button('تثبيت',()=>action('/api/chat/pin',{id:message.id}),'delete'));
+   box.append(head);if(message.reply)box.append(text('blockquote',message.reply.name+' · '+message.reply.text));if(message.spoiler){const details=document.createElement('details');details.append(text('summary','رسالة مخفية • اضغط للعرض'),text('p',message.text));box.append(details);}else box.append(text('p',message.text));
+   if(entry)entry.node.replaceWith(box);entry={node:box,signature};chatNodes.set(message.id,entry);
+  }
+  if(log.children[index]!==entry.node)log.insertBefore(entry.node,log.children[index]||null);
+ });
+ if(near)log.scrollTop=log.scrollHeight;else log.scrollTop=previousScroll;window.dshoofStudio?.chatChanged(near);
+}
+function renderPoll(){const p=room.poll;$('poll-card').hidden=!p;if(!p)return;const total=p.counts.reduce((a,b)=>a+b,0);$('poll-question').textContent=p.question;$('poll-state').textContent=(p.closed?'انتهى التصويت':'صوت واحد لكل مشاهد • يمكنك تغيير اختيارك')+' · '+total+' أصوات · الأسماء ظاهرة للجميع';$('poll-options').replaceChildren(...p.options.map((o,i)=>{const card=text('div','','poll-option');const percent=total?Math.round(p.counts[i]/total*100):0;const b=button(o,()=>action('/api/poll',{action:'vote',choice:i}),p.myVote===i?'voted':'');b.setAttribute('aria-pressed',String(p.myVote===i));b.append(text('span',p.counts[i]+' أصوات · '+percent+'%','poll-tally'));b.disabled=p.closed;const meter=document.createElement('progress');meter.max=100;meter.value=percent;meter.setAttribute('aria-label',o+' '+percent+'%');const names=text('div','','participant-names');for(const name of p.voters?.[i]||[])names.append(text('span',name,'name-chip'));if(!names.childNodes.length)names.append(text('small','كن أول المصوّتين'));card.append(b,meter,names);return card;}));}
+function renderReactionNames(){const labels={like:'أعجبهم البث',love:'أحبّوا البث',heart:'أرسلوا قلبًا'};$('reaction-names').replaceChildren(...Object.entries(labels).map(([type,label])=>{const wrap=text('div','','reaction-group');const names=room.reactionNames?.[type]||[];wrap.append(text('strong',label));for(const name of names)wrap.append(text('span',name,'name-chip'));if(!names.length)wrap.append(text('small','لا توجد تفاعلات مسمّاة بعد'));return wrap;}));document.querySelectorAll('[data-reaction]').forEach(b=>{const chosen=(room.myReactions||[]).includes(b.dataset.reaction);b.disabled=chosen||!state.authorized;b.setAttribute('aria-pressed',String(chosen));b.title=chosen?'تم تسجيل تفاعلك مرة واحدة':'تفاعل مرة واحدة باسمك';});}
+
+function render(){const s=state;renderPublicEntry();document.body.classList.toggle('guest',!s.authorized);renderConnection();const qs=$('quality-select'),previous=qs.value,isWeak=['weak','emergency'].includes($('network-mode').value),options=isWeak?[{id:'weak',label:$('network-mode').value==='emergency'?'الطوارئ · 144p · 10 إطارات/ث':'ضغط دشوف · '+(s.streamProfiles?.find(p=>p.id===(s.weakStatus?.profile||s.weakProfile))?.label||'جارٍ التجهيز')}]:[{id:'auto',label:s.adaptive?'تلقائي حسب الإنترنت':'تلقائي · دقة المصدر الوحيدة'},{id:'highest',label:'أعلى جودة المصدر'},...(s.qualities||[])];const signature=JSON.stringify(options);if(qs.dataset.options!==signature){qs.replaceChildren(...options.map(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.label;return o;}));qs.value=options.some(x=>x.id===previous)?previous:options[0].id;qs.dataset.options=signature;}qs.disabled=s.selection?.kind==='youtube'||isWeak;window.dshoofStudio?.render();$('server-stream-controls').hidden=!s.canControl;$('stream-profile-status').textContent='الوضع الجاري: '+(s.streamProfiles?.find(p=>p.id===(s.weakStatus?.profile||s.weakProfile))?.label||'جودة المصدر');if($('stream-profile').dataset.serverValue!==s.weakProfile){$('stream-profile').value=s.weakProfile||'source';$('stream-profile').dataset.serverValue=s.weakProfile;}$('admin').hidden=!s.canControl||!!window.dshoofStudio&&document.body.dataset.page!=='admin';$('admin-link').hidden=!s.canControl;$('guest-message').hidden=s.authorized;$('guest-reason').textContent=s.status||'اختر اسمك للانضمام إلى اللمّة';$('title').textContent=s.selection?.title||'دشوف مباشر';if(!running||v.readyState>=3&&!v.paused)$('status').textContent=s.status||'';$('live-badge').textContent=s.stopped?'متوقف':s.ready?'جاهز':'بانتظار البث';$('source-badge').textContent=s.selection?.kind==='youtube'?'YouTube':'HLS';$('waiting').hidden=running;const idle=s.stopped||!s.selection||s.ended;$('waiting-title').textContent=idle?'لا توجد مباراة حالياً':s.ready?'البث جاهز':'جاري تجهيز البث';$('waiting-text').textContent=idle?'اللمّة ترجع مع صافرة البداية. تابعنا لمعرفة موعد البث القادم.':s.status||'نجهّز لك المشاهدة…';renderRoom();if(!s.canControl)return;$('playlist').value=s.playlist;$('quality-note').textContent=s.qualityNote||'';$('download-qualities').href=s.allQualitiesPlaylist;$('download-qualities').hidden=s.selection?.kind==='youtube';$('quality-links').hidden=s.selection?.kind==='youtube';$('quality-links').replaceChildren(...(s.qualityPlaylists||[]).map(q=>{const row=document.createElement('div');const a=document.createElement('a');a.className='button';a.href=q.url;a.textContent=q.label+' · تنزيل M3U';a.download='dshoof-'+q.id+'.m3u';row.append(a,button('نسخ رابط '+q.label,()=>copy(q.url)));return row;}));$('download-playlist').href=s.playlist;$('youtube-note').hidden=s.selection?.kind!=='youtube';$('selected-title').textContent=s.selection?.title||'لم يتم اختيار بث';$('selected-majed-server').hidden=!s.selection?.serverName;$('selected-majed-server').textContent=s.selection?.serverName?'مشغّل ماجد الحالي: '+s.selection.serverName+(s.selection.serverId?' · اختيار محفوظ':' · اختيار تلقائي'):'';$('server-state').textContent=(s.stopped?'البث متوقف بأمرك':'التشغيل على الاستضافة مستقل عن هذه الصفحة')+' · مدة تشغيل الخادم '+Math.floor(s.uptime/60)+' دقيقة';$('viewers').textContent=s.viewers+' / '+s.maxViewers+' متصلين';$('resume-broadcast').disabled=!s.selection||!s.stopped;$('stop-broadcast').disabled=s.stopped||!s.selection;renderMembers();$('history').replaceChildren(...(s.history||[]).map(x=>button(x.title||x.code||x.url,()=>action('/api/select',x))));if(!initialized){const a=room.settings;$('setting-name').value=a.name;$('setting-announcement').value=a.announcement;$('setting-chat').checked=a.chatEnabled;$('setting-reactions').checked=a.reactionsEnabled;$('setting-slow').value=a.slowSeconds;$('setting-max').value=a.maxViewers;initialized=true;if(s.selection?.kind==='url'&&isMajedPage(s.selection.url)){$('source-kind').value='url';$('source-url').value=s.selection.url;$('source-title').value=s.selection.title||'';$('source-kind').onchange();}}}
+async function refresh({afterCurrent=false}={}){
+ if(refreshRequest){const pending=refreshRequest;await pending;if(!afterCurrent)return;if(refreshRequest===pending)refreshRequest=null;return refresh();}
+ const pending=fetchStatus();refreshRequest=pending;try{return await pending;}finally{if(refreshRequest===pending)refreshRequest=null;}
+}
+async function fetchStatus(){
+ refreshing=true;
+ try{let s=await api('/api/status?since='+(room.version||0));if(s.room?.instanceId&&room.instanceId&&s.room.instanceId!==room.instanceId&&!Object.hasOwn(s.room,'messages'))s=await api('/api/status?since=0');state=s;const changed=s.room&&(Object.hasOwn(s.room,'messages')||s.room.messagesDelta);if(s.room)mergeRoom(s.room);
+  if(!s.authorized){room={};chatNodes.clear();stopRoomEvents();stopLocal();$('chat-log').replaceChildren();$('poll-card').hidden=true;}
+  if(s.stopped&&running)stopLocal();render();const next=playbackRevision();if(s.authorized&&s.authenticated!==false&&!needsRegistration()&&s.ready&&!paused&&(!running||revision!==next)){revision=next;watch();}
+  if(changed){renderChat();renderPoll();renderReactionNames();}connectRoomEvents();pollFailures=0;$('connection').textContent='متصل بالخادم';$('connection-dot').classList.remove('off');
+ }catch(error){pollFailures++;$('connection').textContent=navigator.onLine?'إعادة اتصال…':'الاتصال غير متاح';$('connection-dot').classList.add('off');}
+ finally{refreshing=false;}
+}
+$('start').onclick=watch;$('reload-video').onclick=watch;$('play-toggle').onclick=()=>{if(state.selection?.kind==='youtube'){if(running){paused=true;stopLocal();render();}else watch();return;}if($('video').paused){paused=false;if(running){hls?.startLoad(-1);$('video').play().catch(e=>notice(e.message));}else watch();}else{paused=true;hls?.stopLoad();$('video').pause();}};
+$('go-live').onclick=()=>{const v=$('video');if(v.seekable.length)v.currentTime=Number.isFinite(hls?.liveSyncPosition)?hls.liveSyncPosition:Math.max(v.seekable.start(v.seekable.length-1),v.seekable.end(v.seekable.length-1)-8);};
+$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if($('screen').requestFullscreen)await $('screen').requestFullscreen();else $('video').webkitEnterFullscreen?.();}catch(e){notice(e.message);}};
+$('pip').hidden=!document.pictureInPictureEnabled;$('pip').onclick=async()=>{try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else await $('video').requestPictureInPicture();}catch{notice('ابدأ الفيديو أولًا؛ الميزة تعتمد على المتصفح ونوع البث');}};
+const v=$('video');$('cast').hidden=!(v.remote||v.webkitShowPlaybackTargetPicker);$('cast').onclick=async()=>{try{if(v.webkitShowPlaybackTargetPicker)v.webkitShowPlaybackTargetPicker();else await v.remote.prompt();}catch{notice('لم يتوفر جهاز عرض متوافق');}};
+async function wake(){try{if(wantWake&&document.visibilityState==='visible')wakeLock=await navigator.wakeLock.request('screen');else{await wakeLock?.release();wakeLock=null;}controlLabel('wake',wantWake?'إلغاء إبقاء الشاشة':'إبقاء الشاشة','eye');}catch{wantWake=false;notice('تعذر إبقاء الشاشة مضاءة على هذا الجهاز');}}
+$('wake').hidden=!navigator.wakeLock;$('wake').onclick=()=>{wantWake=!wantWake;wake();};document.addEventListener('visibilitychange',()=>{wake();if(!document.hidden)refresh();});
+$('focus').onclick=()=>{$('focus').setAttribute('aria-pressed',String(document.body.classList.toggle('cinema')));};$('chat-hide').onclick=()=>{$('chat-body').hidden=!$('chat-body').hidden;controlLabel('chat-hide',$('chat-body').hidden?'إظهار':'إخفاء',$('chat-body').hidden?'eye':'eye-off');$('chat-hide').setAttribute('aria-expanded',String(!$('chat-body').hidden));$('chat-hide').setAttribute('aria-label',$('chat-body').hidden?'إظهار الدردشة':'إخفاء الدردشة');};
+$('quality-select').onchange=()=>{if(state.ready){revision=playbackRevision();watch();}};
+$('playback-mode').onchange=()=>{try{localStorage.setItem('dshoof-mode',$('playback-mode').value);}catch{}if(running)watch();};try{$('playback-mode').value=localStorage.getItem('dshoof-mode')||'balanced';}catch{}
+$('sleep').onchange=()=>{clearTimeout(sleepTimer);const minutes=Number($('sleep').value);if(minutes)sleepTimer=setTimeout(()=>{paused=true;stopLocal();render();notice('انتهى مؤقتك؛ توقف العرض عندك فقط، والبث مستمر على الاستضافة');},minutes*60000);};
+
+function privacyUpdate(value){const update=privacyQueue.catch(()=>{}).then(()=>api('/api/privacy',value));privacyQueue=update.then(()=>{},()=>{});return update;}
+function telemetryEnabled(){return !pageLeaving&&$('privacy-telemetry')?.checked!==false&&telemetryAllowed;}
+async function collectClientInfo(){
+ if(!telemetryEnabled())return {};
+ const result={shared:true,screen:{width:Math.round(window.screen?.width||0),height:Math.round(window.screen?.height||0),pixelRatio:window.devicePixelRatio||1},locale:navigator.language||'',subscription:$('privacy-subscription')?.value||'unspecified'};
+ if(result.subscription==='notshared')result.subscription='unspecified';
+ try{result.timezone=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch{}
+ const connection=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(connection){result.network={};for(const key of ['effectiveType','downlink','rtt','saveData','type'])if(connection[key]!==undefined)result.network[key]=connection[key];}
+ if(navigator.getBattery){let deadline;try{batteryPromise||=navigator.getBattery().catch(()=>null);const battery=await Promise.race([batteryPromise,new Promise(resolve=>{deadline=setTimeout(()=>resolve(null),1200);})]);if(battery)result.battery={level:Math.round(battery.level*100),charging:!!battery.charging};}catch{}finally{clearTimeout(deadline);}}
+ if(!telemetryEnabled())return {};if(sharedLocation)result.location={...sharedLocation};return result;
+}
+function renderLocationPrivacy(){if($('privacy-location-clear'))$('privacy-location-clear').hidden=!sharedLocation&&!locationBusy;if($('privacy-location-button'))$('privacy-location-button').disabled=!telemetryEnabled()||locationBusy;if($('privacy-location-state'))$('privacy-location-state').textContent=sharedLocation?'تشارك موقعًا تقريبيًا مع المضيف فقط.':locationBusy?'بانتظار موافقتك وتأكيد مشاركة الموقع…':'لم تشارك موقعك.';}
+async function shareLocation(){
+ if(!telemetryEnabled()||locationBusy||!navigator.geolocation){if($('privacy-location-state'))$('privacy-location-state').textContent='مشاركة الموقع غير متاحة أو معلومات المشاهدة مغلقة.';return;}
+ const request=++locationRequest;locationBusy=true;renderLocationPrivacy();
+ navigator.geolocation.getCurrentPosition(async position=>{
+  if(request!==locationRequest||!telemetryEnabled())return;
+  try{await privacyUpdate({location:true});if(request!==locationRequest||!telemetryEnabled())return;sharedLocation={latitude:Number(position.coords.latitude.toFixed(3)),longitude:Number(position.coords.longitude.toFixed(3)),accuracy:Math.round(position.coords.accuracy)};locationBusy=false;renderLocationPrivacy();report();}
+  catch(error){if(request===locationRequest){locationBusy=false;renderLocationPrivacy();$('privacy-location-state').textContent='لم تتم مشاركة الموقع: '+error.message;}}
+ },()=>{if(request===locationRequest){locationBusy=false;renderLocationPrivacy();$('privacy-location-state').textContent='لم تتم مشاركة الموقع. يمكنك المحاولة لاحقًا.';}},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+}
+async function clearLocation(){
+ const request=++locationRequest;sharedLocation=null;locationBusy=false;renderLocationPrivacy();$('privacy-location-state').textContent='توقف إرسال موقعك؛ نؤكد مسحه من لوحة المضيف…';
+ try{await privacyUpdate({location:false});if(request===locationRequest){renderLocationPrivacy();$('privacy-location-state').textContent='ألغيت مشاركة الموقع وأزيلت بياناته من لوحة المضيف.';}}
+ catch(error){if(request===locationRequest)$('privacy-location-state').textContent='توقف الإرسال من هذا الجهاز، وتعذر تأكيد مسح البيانات: '+error.message;}
+}
+async function setTelemetryPolicy(){
+ if(privacyChanging)return;const selected=$('privacy-telemetry').checked;privacyChanging=true;$('privacy-telemetry').disabled=true;telemetryAllowed=false;
+ try{localStorage.setItem('dshoof-telemetry',selected?'on':'off');}catch{}
+ locationRequest++;sharedLocation=null;locationBusy=false;batteryPromise=null;renderLocationPrivacy();
+ try{await privacyUpdate({device:selected});telemetryAllowed=selected;renderLocationPrivacy();notice(selected?'سمحت بمعلومات التشغيل للمضيف فقط؛ الموقع يحتاج موافقة مستقلة.':'أوقفت مشاركة المعلومات الاختيارية وأزيلت بياناتها من لوحة المضيف.');if(selected)report();}
+ catch(error){notice('توقف إرسال المعلومات من هذا الجهاز؛ تعذر تأكيد حفظ الخصوصية: '+error.message);}
+ finally{privacyChanging=false;$('privacy-telemetry').disabled=false;renderLocationPrivacy();}
+}
+function setupPrivacy(){
+ try{if($('privacy-telemetry'))$('privacy-telemetry').checked=localStorage.getItem('dshoof-telemetry')!=='off';if($('privacy-subscription'))$('privacy-subscription').value=localStorage.getItem('dshoof-subscription')||'unspecified';}catch{}
+ telemetryAllowed=$('privacy-telemetry')?.checked!==false;if($('privacy-telemetry'))$('privacy-telemetry').onchange=setTelemetryPolicy;
+ if($('privacy-subscription'))$('privacy-subscription').onchange=()=>{try{localStorage.setItem('dshoof-subscription',$('privacy-subscription').value);}catch{}report();};
+ if($('privacy-location-button'))$('privacy-location-button').onclick=shareLocation;if($('privacy-location-clear'))$('privacy-location-clear').onclick=clearLocation;if($('viewer-details-close'))$('viewer-details-close').onclick=()=>$('viewer-details-dialog').close();renderLocationPrivacy();
+}
+
+async function report(help=false){if(pageLeaving||!state.authorized)return;if(state.canControl){if(help)notice('جرّب النت الضعيف أو وضع الثبات، وتحقق من معدل البث في بطاقة الاتصال.');return;}try{const clientInfo=await collectClientInfo();if(pageLeaving)return;await api('/api/report',{clientInfo,state:state.selection?.kind==='youtube'?'youtube':v.error?'error':v.paused?'paused':v.readyState<3?'buffering':'playing',buffer:buffer(),height:v.videoHeight,help,...(window.dshoofPro?.report()||{})});if(help)notice('وصل تنبيهك إلى المضيف');}catch(e){if(help)notice(e.message);}}
+$('help-stream').onclick=()=>report(true);setInterval(()=>report(),15000);setInterval(()=>{const b=Math.round(buffer());$('buffer-state').textContent='مخزون '+b+' ث';window.dshoofStudio?.metrics(b);$('diagnostics').textContent=state.selection?.kind==='youtube'?'يوتيوب يعمل داخل مشغله الخاص':(v.videoHeight?v.videoWidth+' × '+v.videoHeight+' · ':'')+'مخزون التشغيل '+b+' ثانية · '+(navigator.onLine?'الجهاز متصل بالشبكة':'الشبكة غير متصلة');controlLabel('play-toggle',v.paused?'تشغيل':'إيقاف عندي',v.paused?'play':'pause');},2000);
+$('copy-playlist').onclick=()=>copy($('playlist').value);if($('copy-public-room'))$('copy-public-room').onclick=()=>copy(publicRoomURL());if($('share-public-room'))$('share-public-room').onclick=async()=>{try{if(navigator.share)await navigator.share({title:'شاهد معي على دشوف',url:publicRoomURL()});else await copy(publicRoomURL());}catch{}};
+let majedLoadedURL='',majedLoadVersion=0,majedLoadTimer,majedPending=null;
+function invalidateSourceOptions(){clearTimeout(majedLoadTimer);majedLoadVersion++;majedLoadedURL='';majedPending=null;$('majed-server')?.replaceChildren();if($('majed-server'))$('majed-server').disabled=true;if($('majed-fields'))$('majed-fields').hidden=true;if($('majed-server-note'))$('majed-server-note').textContent='';}
+function isMajedPage(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&['live.xn----zmcaegc7cl3msazv.com','majed-koora.live'].includes(u.hostname)&&/^[A-Za-z0-9_-]{20,160}$/.test(u.searchParams.get('mk')||'');}catch{return false;}}
+function updateMajedControls(){clearTimeout(majedLoadTimer);majedPending=null;majedLoadVersion++;majedLoadedURL='';const visible=$('source-kind').value==='url'&&isMajedPage($('source-url').value.trim());$('majed-fields').hidden=!visible;$('majed-server').disabled=true;$('majed-server').replaceChildren(new Option('تلقائي · أول مشغّل متاح',''));$('load-majed-servers').disabled=false;$('majed-server-note').textContent=visible?'جاري قراءة مشغّلات المباراة…':'ستظهر هنا المشغّلات التي توفرها صفحة المباراة.';if(visible)majedLoadTimer=setTimeout(()=>loadMajedServers(true),400);}
+function loadMajedServers(quiet=false){const url=$('source-url').value.trim();if(majedPending?.url===url)return majedPending.promise;const promise=readMajedServers(quiet),pending={url,promise};majedPending=pending;promise.finally(()=>{if(majedPending===pending)majedPending=null;});return promise;}
+async function readMajedServers(quiet=false){clearTimeout(majedLoadTimer);const url=$('source-url').value.trim();if(!isMajedPage(url))return false;const version=++majedLoadVersion,previous=majedLoadedURL===url?$('majed-server').value:((state.selection?.url===url&&state.selection.serverId)||'');$('load-majed-servers').disabled=true;$('majed-server').disabled=true;$('majed-server-note').textContent='جاري قراءة مشغّلات المباراة…';try{const data=await api('/api/source-options',{url});if(version!==majedLoadVersion||$('source-url').value.trim()!==url)return false;$('majed-server').replaceChildren(new Option('تلقائي · أول مشغّل متاح',''),...data.servers.map(x=>new Option([x.name,x.quality].filter(Boolean).join(' · '),x.id)));const missing=!!previous&&!data.servers.some(x=>x.id===previous);if(missing){const unavailable=new Option('المشغّل السابق غير متاح — اختر مشغّلًا آخر',previous);unavailable.disabled=true;$('majed-server').append(unavailable);}if(previous)$('majed-server').value=previous;majedLoadedURL=url;$('majed-server').disabled=false;$('majed-server-note').textContent=missing?'المشغّل المحفوظ لم يعد متاحًا؛ اختر مشغّلًا آخر بنفسك.':'متاح '+data.servers.length+' مشغّل — اختر ثم اضغط تشغيل وتحديث قناة دشوف.';return true;}catch(e){if(version===majedLoadVersion){majedLoadedURL='';$('majed-server-note').textContent=e.message;if(!quiet)notice(e.message);}return false;}finally{if(version===majedLoadVersion)$('load-majed-servers').disabled=false;}}
+$('load-majed-servers').onclick=()=>loadMajedServers();
+$('source-url').addEventListener('input',updateMajedControls);
+$('source-kind').onchange=()=>{const direct=$('source-kind').value==='url';$('code-fields').hidden=direct;$('url-fields').hidden=!direct;$('code').required=!direct;$('source-url').required=direct;updateMajedControls();};
+$('select-form').onsubmit=async e=>{e.preventDefault();$('select').disabled=true;try{const kind=$('source-kind').value,url=$('source-url').value.trim();if(kind==='url'&&isMajedPage(url)&&majedLoadedURL!==url&&!await loadMajedServers())return;notice('جاري فحص المصدر وتجهيزه على الاستضافة…');const result=await action('/api/select',{kind,code:$('code').value,url,title:$('source-title').value,...(kind==='url'&&isMajedPage(url)?{serverId:$('majed-server').value}:{})});if(result){paused=false;notice('تم حفظ المصدر والمشغّل؛ يستمر البث على الاستضافة عند إغلاق الصفحة');}}finally{$('select').disabled=false;}};
+$('stop-broadcast').onclick=()=>action('/api/stop',{});$('resume-broadcast').onclick=()=>action('/api/resume',{});$('logout').onclick=async()=>{if(await action('/api/logout',{})){stopLocal();location.replace('/');}};
+$('settings-form').onsubmit=async e=>{e.preventDefault();if(await action('/api/settings',{name:$('setting-name').value,announcement:$('setting-announcement').value,chatEnabled:$('setting-chat').checked,reactionsEnabled:$('setting-reactions').checked,slowSeconds:Number($('setting-slow').value),maxViewers:Number($('setting-max').value)}))notice('تم حفظ إعدادات الغرفة');};
+$('chat-form').onsubmit=sendChat;$('clear-chat').onclick=()=>action('/api/chat/clear',{});document.querySelectorAll('[data-reaction]').forEach(b=>b.onclick=()=>action('/api/react',{type:b.dataset.reaction}));
+$('poll-form').onsubmit=e=>{e.preventDefault();action('/api/poll',{action:'create',question:$('poll-input').value,options:$('poll-choices').value.split('\n')});};$('close-poll').onclick=()=>action('/api/poll',{action:'close'});
+document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY/.test(e.target.tagName)||e.target.isContentEditable)return;const id={f:'fullscreen',l:'go-live',' ':'play-toggle'}[e.key.toLowerCase()];if(id){e.preventDefault();$(id).click();}if(e.key.toLowerCase()==='m')v.muted=!v.muted;});
+setupPrivacy();setupMemberControls();if($('welcome-form'))$('welcome-form').onsubmit=joinRoom;
+if($('welcome-dialog'))$('welcome-dialog').addEventListener('cancel',event=>{if(needsRegistration())event.preventDefault();});
+if($('welcome-close'))$('welcome-close').onclick=event=>{if(needsRegistration()){event.preventDefault();return;}$('welcome-dialog').close();};
+if($('welcome-join-open'))$('welcome-join-open').onclick=()=>renderPublicEntry();
+if($('chat-toggle'))$('chat-toggle').onclick=toggleChat;
+(async()=>{const key=new URLSearchParams(location.hash.slice(1)).get('admin');if(key||location.search)history.replaceState(null,'',location.pathname+(key?'':location.hash));if(key){try{await api('/api/login',{key});}catch(error){notice(error.message);}}await refresh();if(!pageLeaving)pollTimer=setTimeout(pollStatus,statusPollDelay());})();
+
+$('edit-profile').onclick=()=>{$('profile-form').hidden=!$('profile-form').hidden;$('profile-name').value=room.name||state.profile?.name||'';$('profile-avatar').value=room.avatar||state.profile?.avatar||'purple';if($('profile-username'))$('profile-username').value=room.username||state.profile?.username||'';$('profile-name').focus();};$('profile-form').onsubmit=async e=>{e.preventDefault();if(await action('/api/profile',{name:$('profile-name').value,avatar:$('profile-avatar').value})){$('profile-form').hidden=true;notice('تم حفظ اسمك؛ سيظهر للمضيف وللأصدقاء');}};$('reply-preview').onclick=()=>{replyTo=null;$('reply-preview').hidden=true;};$('chat-text').addEventListener('input',()=>{if(Date.now()-lastTyping>3000){lastTyping=Date.now();api('/api/typing',{}).catch(()=>{});}});document.querySelectorAll('[data-emoji]').forEach(b=>b.onclick=()=>{$('chat-text').value+=b.dataset.emoji;$('chat-text').focus();});
+
+$('stream-profile-form').onsubmit=async e=>{e.preventDefault();const b=$('apply-stream-profile');b.disabled=true;try{if(await action('/api/stream-profile',{profile:$('stream-profile').value}))notice('تم حفظ إعداد النت الضعيف؛ البث الأساسي لم يتغير');}finally{b.disabled=false;}};
+
+$('network-mode').onchange=()=>{try{localStorage.setItem('dshoof-network',$('network-mode').value);}catch{}render();revision=playbackRevision();if(state.ready&&!paused)watch();else stopLocal();};try{const saved=localStorage.getItem('dshoof-network');$('network-mode').value=['fast','weak','emergency'].includes(saved)?saved:'fast';}catch{}
+window.addEventListener('pagehide',()=>{pageLeaving=true;locationRequest++;sharedLocation=null;clearTimeout(typingTimer);stopRoomEvents();stopLocal();clearTimeout(pollTimer);});window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});window.addEventListener('online',()=>{refresh();connectRoomEvents();});window.addEventListener('offline',stopRoomEvents);
+
+function rate(kbps){return Number(kbps)>=1000?(Number(kbps)/1000).toFixed(2)+' ميغابت/ث':Math.round(Number(kbps))+' كيلوبت/ث';}
+function renderConnection(){
+ const mode=$('network-mode').value,weak=mode==='weak'||mode==='emergency',summary=$('network-summary');if(!summary)return;
+ summary.dataset.mode=mode;const status=mode==='emergency'?state.emergencyStatus:state.weakStatus;
+ const profile=mode==='emergency'?state.emergencyProfile:state.streamProfiles?.find(p=>p.id===(status?.profile||state.weakProfile));
+ $('network-heading').textContent=state.selection?.kind==='youtube'?'الجودة من أدوات يوتيوب':mode==='emergency'?'أقل استهلاك · وضع الطوارئ':weak?'استهلاك أقل · نسخة خفيفة':'أفضل صورة · بث المصدر';
+ const required=Number(status?.requiredKbps||profile?.requiredKbps||profile?.bandwidthKbps||0),measured=Number(status?.transportKbps||0);
+ $('network-detail').textContent=state.selection?.kind==='youtube'?'خيارات توفير البيانات هنا تخص البث المباشر. اضبط جودة يوتيوب من مشغّله.':weak?'تشاهد نسخة واحدة مضغوطة. نحمّل مقدارًا محدودًا مقدمًا لتخفيف التقطيع.'+(required?' اتصال مستقر بحدود '+rate(required)+' أو أسرع.':' يبدأ التشغيل بعد تجهيز أول المقاطع.'): 'الاختيار التلقائي يتبع الدقات التي يوفرها المصدر. اختر «النت الضعيف» لتقليل البيانات فعليًا.';
+ $('network-rate').textContent=weak&&measured>0?rate(measured):weak?'جارٍ قياس معدل البث':'الجودة حسب المصدر';
+ $('network-rate').hidden=state.selection?.kind==='youtube';$('network-mode').disabled=state.selection?.kind==='youtube';
+ if(weak&&running&&!state.stopped&&status?.error)$('network-detail').textContent='النسخة الخفيفة تعيد الاتصال. سنحاول تلقائيًا دون تحميل النسخة الأصلية.';
+}

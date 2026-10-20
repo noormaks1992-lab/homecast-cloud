@@ -91,20 +91,54 @@ export async function selectRelease(root,options={}){
  catch(error){return {candidate:fallback,fallback,error:error.message};}
 }
 
-async function startRelease(release,env,port,onChild,{timeout=45000}={}){
- const child=spawn(process.execPath,['supervisor.mjs'],{cwd:release.dir,env:{...env,DSHOOF_RELEASE:release.version},stdio:'inherit',detached:process.platform!=='win32'});onChild(child);
+const releaseProcesses=new WeakMap(),stops=new WeakMap();
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export async function startRelease(release,env,port,onChild,{timeout=45000}={}){
+ // Public boot identity is fresh for every attempt, including fallback. A
+ // healthy old listener on this port must never validate a failed new child.
+ const bootId=randomBytes(16).toString('hex');
+ const child=spawn(process.execPath,['supervisor.mjs'],{cwd:release.dir,env:{...env,DSHOOF_RELEASE:release.version,DSHOOF_BOOT_ID:bootId},stdio:'inherit',detached:process.platform!=='win32'});
+ releaseProcesses.set(child,{pid:child.pid,gone:false});onChild(child);
  let exited=false;child.once('exit',()=>{exited=true;});child.once('error',()=>{exited=true;});
  const deadline=Date.now()+timeout;
  while(Date.now()<deadline&&!exited){
-  try{const response=await fetch('http://127.0.0.1:'+port+'/healthz',{signal:AbortSignal.timeout(1000)});const health=await response.json();if(response.ok&&health.status==='ok'&&health.brand==='دشوف')return child;}catch{}
-  await new Promise(resolve=>setTimeout(resolve,500));
+  try{const response=await fetch('http://127.0.0.1:'+port+'/healthz',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(Math.max(1,Math.min(1000,deadline-Date.now())))});const health=await response.json();if(!exited&&child.exitCode===null&&child.signalCode===null&&response.ok&&health.status==='ok'&&health.brand==='دشوف'&&health.bootId===bootId&&health.release===release.version)return child;}catch{}
+  await pause(Math.max(0,Math.min(500,deadline-Date.now())));
  }
  await stopChild(child);throw Error('application did not become healthy');
 }
-async function stopChild(child){
- if(!child||child.exitCode!==null||child.signalCode!==null)return;
- const send=signal=>{try{process.platform==='win32'?child.kill(signal):process.kill(-child.pid,signal);}catch{}};
- await new Promise(resolve=>{const timer=setTimeout(()=>{send('SIGKILL');resolve();},8500);child.once('exit',()=>{clearTimeout(timer);resolve();});send('SIGTERM');});
+export function stopChild(child){
+ if(!child)return Promise.resolve();
+ if(stops.has(child))return stops.get(child);
+ const record=releaseProcesses.get(child)||{pid:child.pid,gone:false},grouped=process.platform!=='win32';
+ const exited=()=>child.exitCode!==null||child.signalCode!==null||!record.pid;
+ const send=signal=>{if(!record.pid||record.gone)return;try{grouped?process.kill(-record.pid,signal):child.kill(signal);}catch(error){if(error.code==='ESRCH')record.gone=true;}};
+ async function groupAlive(){
+  if(!record.pid||record.gone)return false;
+  if(!grouped)return !exited();
+  try{process.kill(-record.pid,0);}catch(error){if(error.code==='ESRCH')record.gone=true;return false;}
+  if(process.platform!=='linux'||!exited())return true;
+  // Container PID 1 may retain orphaned zombies. They cannot execute, so only
+  // live members of this exact spawned group block the next release.
+  try{
+   const members=await Promise.all((await readdir('/proc')).filter(p=>/^\d+$/.test(p)).map(async pid=>{try{const text=await readFile('/proc/'+pid+'/stat','utf8'),fields=text.slice(text.lastIndexOf(')')+2).trim().split(/\s+/);return Number(fields[2])===record.pid&&!['Z','X'].includes(fields[0]);}catch{return false;}}));
+   if(!members.some(Boolean)){record.gone=true;return false;}
+  }catch{}
+  return true;
+ }
+ const stopped=(async()=>{
+  send('SIGTERM');const deadline=Date.now()+8500;let exitedAt=exited()?Date.now():null;
+  while(Date.now()<deadline){
+   if(exited()&&exitedAt===null)exitedAt=Date.now();
+   if(exited()&&!await groupAlive())return;
+   if(exitedAt!==null&&Date.now()-exitedAt>=500)break;
+   await pause(50);
+  }
+  send('SIGKILL');const forced=Date.now()+1000;
+  while(Date.now()<forced){if(exited()&&!await groupAlive())return;await pause(25);}
+  // Do not start fallback while a previous process group can still execute.
+  const error=Error('application process group did not stop');error.code='DSHOOF_STOP_INCOMPLETE';throw error;
+ })();stops.set(child,stopped);return stopped;
 }
 
 async function prune(root,keep){
@@ -128,10 +162,12 @@ export async function main(root=path.dirname(fileURLToPath(import.meta.url)),{st
  try{active=await startRelease(candidate,env,port,child=>{active=child;},{timeout:startupTimeout});}
  catch(failure){
   if(stopping)return;
+  if(failure.code==='DSHOOF_STOP_INCOMPLETE')throw failure;
   if(candidate.dir===fallback.dir)throw failure;
   console.log('[github-update] new release failed startup; reverting');
   active=await startRelease(fallback,env,port,child=>{active=child;},{timeout:startupTimeout});chosen=fallback;
  }
+ if(stopping){await stopChild(active);return;}
  if(chosen.id){
   await atomicJSON(path.join(root,'.dshoof-current.json'),{id:chosen.id,version:chosen.version});
   await prune(root,[chosen.id,fallback.id]).catch(()=>{});

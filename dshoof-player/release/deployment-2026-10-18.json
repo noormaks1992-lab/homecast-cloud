@@ -1,0 +1,108 @@
+{
+  "recordedAt": "2026-10-18T04:08:31+03:00",
+  "site": "https://dshoof.bot-keep.xyz/",
+  "workloadId": "83275da8-1731-45e5-a55e-91e3a564cf88",
+  "status": "deployed and restarted; saved source currently rejected by provider",
+  "version": "3.2.0",
+  "release": "3.2.0-public-arena.1",
+  "testedSourceCommit": "59f42f3434445642b0581f69be0044a63b62b1fc",
+  "snapshotSha256": "e832efab3a61e25e05004a06e55ea73b323b483658b6e5e23ec80e759237d6f4",
+  "stopRequestedAt": "2026-10-18T03:59:42+03:00",
+  "runningVerifiedAt": "2026-10-18T04:05:24+03:00",
+  "wholeWorkloadStoppedAndStarted": true,
+  "uploadedFiles": 27,
+  "readbackVerifiedFiles": 27,
+  "pinnedStartup": {
+    "path": "github-start.mjs",
+    "source": "tools/pinned-start.mjs",
+    "sha256": "a467a566920a07d53033995a9e28c232a8b8bb07bf356e9ba04c8dd4153e45f0",
+    "platformGitHubSource": null
+  },
+  "preservedData": {
+    "permanentIdentityPreserved": true,
+    "existingInviteCredentialsPreserved": true,
+    "existingSelectionPreserved": true,
+    "newAnalyticsStatePresent": true
+  },
+  "coreChecks": {
+    "health": {
+      "status": "ok",
+      "version": "3.2.0",
+      "release": "3.2.0-public-arena.1",
+      "streamReady": false,
+      "uptime": null
+    },
+    "assetHashes": {
+      "/": true,
+      "/app.js": true,
+      "/pro.css": true,
+      "/style.css": true,
+      "/beta.js": true,
+      "/sw.js": true,
+      "/dshoof-logo-small.webp": true
+    },
+    "guestPrivacy": true,
+    "registrationRequired": true,
+    "publicRoomURL": "https://dshoof.bot-keep.xyz/",
+    "ownerLogin": true,
+    "ownerAnalyticsPresent": true,
+    "ownerMembersPresent": true,
+    "streamReady": false,
+    "stopped": false,
+    "ownerStatusText": "نستعيد استقبال البث خلال 4 ثوانٍ",
+    "passed": true
+  },
+  "legacyAndPermanentM3U": {
+    "bothHTTP200": true,
+    "originalStreamPathRetained": true,
+    "privateGuestFieldsAbsent": true,
+    "unauthenticatedEventsHTTP403": true
+  },
+  "realSource": {
+    "kind": "saved code source",
+    "selectionKept": true,
+    "resumeAttemptHTTP": 400,
+    "providerHTTP403ConfirmedFromHosting": true,
+    "ready": false,
+    "actualWeakEmergencySamplingPerformed": false,
+    "note": "The saved source failed before the upgrade and remains rejected. Source was not replaced; local fixture measurements are not live-source proof."
+  },
+  "backups": {
+    "existingFullBackupsVerifiedReady": true,
+    "existingFullBackupsDeleted": false,
+    "newFullBackupCreated": false,
+    "reason": "Both allowed full-backup slots are occupied; existing full backups retained.",
+    "freshPrivateOriginalFiles": 41,
+    "freshPrivateCodeAndStateArchiveVerified": true,
+    "stoppedStateCopiedBeforeUpload": true,
+    "protectedEnvironmentAndDataFilesUploaded": false,
+    "hostingPlanChanged": false
+  },
+  "hostingAtInspection": {
+    "status": "running",
+    "memoryUsedMb": 46.9,
+    "cpuUsedPercent": 0.45,
+    "note": "Idle with unavailable upstream source; does not measure streaming load."
+  },
+  "localVerification": {
+    "restoredSnapshotTestsPassed": 179,
+    "botkeepClientOfflineTestsPassed": 21
+  },
+  "browserVerification": {
+    "localRealChromiumPassed": true,
+    "directLiveChromiumPassed": false,
+    "liveBlocker": "The isolated browser does not trust the environment HTTPS proxy CA; no TLS bypass used.",
+    "testMemberCreatedOnProduction": false,
+    "productionChatMessagesPosted": false,
+    "note": "Actual live HTML and JS/CSS hashes matched the locally browser-tested release; direct production Chromium verification remains unconfirmed."
+  },
+  "deploymentTooling": {
+    "powerOperationContractFixed": true,
+    "transient401ReadRecoveredWithFreshAuthenticatedClient": true,
+    "checkpointResumedWithoutRepeatingVerifiedWrites": true
+  },
+  "limitations": [
+    "Current saved provider stream is unavailable with HTTP403 from hosting, so live playback and load could not be validated.",
+    "Direct live Chromium testing was blocked by this execution environment certificate trust store; actual Safari/physical IPTV receivers were not tested."
+  ]
+}
