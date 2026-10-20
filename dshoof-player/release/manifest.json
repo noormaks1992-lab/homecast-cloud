@@ -39,7 +39,7 @@
     {
       "path": "public/index.html",
       "beforeSha256": "6905f586c91f8b561b38c8606d90f62bf816b9d284a917605f0c03cdfc60a626",
-      "afterSha256": "6cce64adf87d64ef91dcb1d9934ddecc52da70c14511d011402789d8f4f62884",
+      "afterSha256": "fcba061b2186a0f95f669a9dc14ffc366f5f1e14c0d80160ae27f3d811d2c61f",
       "bytes": 44620
     },
     {
@@ -73,5 +73,5 @@
       "bytes": 1758
     }
   ],
-  "snapshotGitBlobSha": "6dcc6e629206b62245eea5a6bd212fb1879fddc3"
+  "snapshotGitBlobSha": "4864c709e48515c9485d502b0ed3c26939495a91"
 }
