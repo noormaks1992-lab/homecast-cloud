@@ -1,33 +1,34 @@
 {
-  "version": "3.5.0-live-player.3",
+  "version": "3.5.0-helper-player.1",
   "status": "deployed and verified",
   "files": {
-    "package.json": "54b0cb0cf458858ac4d38db363b698248d253c6a22bf04f1299c68f62a526ca9",
+    "package.json": "f8c4ea7572fb19b35dd52a123371b8e5412f417a474561c19519c99487597780",
     "package-lock.json": "fa6a3836f1fd7648e68180cdcf8db8f1c72c34c421b3b6d58f7a70f0e04357b4",
-    "server.mjs": "d5750e50574a435912480cceb9e9aead98bc4003452ecf01257606bf0d083629",
+    "server.mjs": "8bbd9e79edcd8496918f921e392fb82a9e8135772a342b6fe96c4729fc5bacc2",
     "room.mjs": "e4ef9217cb247d4e4a0ddba8a50fc5268973135732c967fbed3dcd33cc6b359c",
     "ip-policy.mjs": "b3fe224cb43aaaf533e58b08b532e091f4408f75d492ff83c9cf1ba47283d171",
     "sources.mjs": "7050bb21639a672c2fb26a37f37d119c8b1bf90b43be8122e1a5430fd915920f",
     "page-extractor.mjs": "dd0f2b3f371e9337a77113ea58a03c2087e77e7b09a5250fee570961ec9db69b",
-    "public/app.js": "e63e9780012a325d8e82b8eee316d0af26694d3e6ee13d7c59d3df88db56fe9e",
-    "public/index.html": "e932bc7a9d8e8e6a340f681f3a66fb9f0e9e32db68a641682473726428c2cb69",
-    "public/style.css": "8546afcd50605649ff09603fcac8cd3d079f0b5277ac8b6a813bf07825e6b95b",
+    "public/app.js": "da7a0eb8d619a090c725ed51766a810f518bbf5d8b73546b20c21843d4ef764f",
+    "public/index.html": "31c39ab65d75d73e28b82c8a661e25f23df22724d8d792408ab77c77ac0b5246",
+    "public/style.css": "d019e21989b3f6468856404ad981929b8582d3f5dcf8d239c8609eb82d8ed890",
     "public/beta.js": "1ca3fbe6f6c9ad54c8ebc7a34f741d9531e45abfe43926347ab1b2bd732a9f3b",
-    "public/pro.js": "f84f4f6ca93932337aab5e81dae1bd87d1ab852334d55ff4944948a4845510aa"
+    "public/pro.js": "f84f4f6ca93932337aab5e81dae1bd87d1ab852334d55ff4944948a4845510aa",
+    "helper-source.mjs": "7057070dfa48409d9fa1e4cf1b23cf1dcf605dfc1731a8187915d63c4972f905"
   },
   "tests": {
-    "passed": 166,
+    "passed": 175,
     "skipped": 2,
     "failed": 0
   },
-  "additionalVerification": "47 overlay navigation/entry checks passed; 10 final source, security, live/DVR, and real dual-stream tests passed. Fullscreen video fills viewport and overlay settings remain inside. DNS/timeout/abort requests return 502 instead of escaping the HTTP handler.",
+  "additionalVerification": "Full suite: 174 passed, 2 skipped, one old CSP assertion updated for the same-origin helper wrapper; the corrected assertion and 10 related tests then passed. Helper preview/auth, nested iframe discovery, channel isolation and permanent key preservation are covered.",
   "startup": {
     "target": "github-start.mjs",
     "source": "release/pinned-start-3.5.0.mjs",
-    "sha256": "faac7a6383c16a4811f2b83348ad58ce022d7c5cf8e92a13a20e0e153b0bb2c0",
+    "sha256": "884ed85d3e5f8fedb85bc1a3027632ceea4005ceee44c910d88d471b026e1f12",
     "requiresExistingState": true
   },
-  "production": {
+  "previousProduction": {
     "health": "ok",
     "streamReady": true,
     "release": "3.5.0-live-player.3",
@@ -36,5 +37,16 @@
     "automaticControlHide": true,
     "channel2Decoded": "1280x720",
     "mobileViewportVerified": false
+  },
+  "production": {
+    "health": "ok",
+    "release": "3.5.0-helper-player.1",
+    "uiFilesMatch": true,
+    "iframePreview": "1280x720, readyState 4",
+    "pagePreview": "Nested player discovered, 1280x720, readyState 4, paused false, time advanced from 143.416569 to 165.580585",
+    "previewHeight": 420,
+    "selectionChangedByVerification": false,
+    "previousDirectStreamReadyAtVerification": false,
+    "providerEmbeddingRestrictionsBypassed": false
   }
 }
