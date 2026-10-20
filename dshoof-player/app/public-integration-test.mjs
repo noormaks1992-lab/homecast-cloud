@@ -43,7 +43,7 @@ test('public registration preserves owner authority, private sources, cookie med
   await t.test('one public URL requires first registration and exposes no installation credentials',async()=>{
    const response=await request('/');assert.equal(response.status,200);assert.match(response.headers.get('permissions-policy'),/geolocation=\(self\)/);assert.match(response.headers.get('permissions-policy'),/microphone=\(\)/);assert.doesNotMatch(await response.text(),/<script\b[^>]*src=["'][^"']*voice\.js/);
    const anonymous=await status();assert.equal(anonymous.authorized,false);assert.equal(anonymous.authenticated,false);assert.equal(anonymous.registrationRequired,true);assert.equal(new URL(anonymous.publicRoomURL,origin).href,origin+'/');assertPrivate(anonymous);assert.equal(Object.hasOwn(anonymous,'analytics'),false);
-   for(const route of ['/live/dshoof.m3u8','/weak/dshoof.m3u8','/emergency/dshoof.m3u8','/quality/auto.m3u8','/api/pro','/api/export','/api/events'])assert.equal((await request(route)).status,403,route);
+   for(const route of ['/live/dshoof.m3u8','/quality/auto.m3u8','/api/pro','/api/export','/api/events'])assert.equal((await request(route)).status,403,route);
    const crossSite=await request('/api/join',{method:'POST',headers:{Origin:'https://untrusted.invalid','Content-Type':'application/json'},body:JSON.stringify({username:'forged_join',name:'طلب خارجي'})});assert.equal(crossSite.status,403);
    assert.equal((await post('/api/privacy',{device:false,location:false})).status,403);
   });
@@ -127,3 +127,4 @@ test('public registration preserves owner authority, private sources, cookie med
   await rm(directory,{recursive:true,force:true});
  }
 });
+

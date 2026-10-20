@@ -230,10 +230,10 @@ test('status fallback fetches full history after a server restart with a matchin
  const oldMessage={id:'old-history',name:'نور',text:'قبل إعادة التشغيل',at:Date.now()},newMessage={id:'new-history',name:'سارة',text:'بعد إعادة التشغيل',at:Date.now()+1};
  const status={authorized:true,authenticated:true,ready:true,selection:{kind:'url'},room:{instanceId:'new-server',version:1,settings:{chatEnabled:true}}};
  let releaseHistory;const history=new Promise(resolve=>{releaseHistory=resolve;});
- const f=fixture({state:{ready:true},room:{instanceId:'old-server',version:1,messages:[oldMessage]},fetch:async request=>request.path==='/api/status?since=1'?response(status):request.path==='/api/status?since=0'?history:assert.fail('unexpected request: '+request.path)});
+ const f=fixture({state:{ready:true},room:{instanceId:'old-server',version:1,messages:[oldMessage]},fetch:async request=>request.path==='/api/status?since=1&channel=1'?response(status):request.path==='/api/status?since=0&channel=1'?history:assert.fail('unexpected request: '+request.path)});
  f.context.window.EventSource=undefined;f.client.renderChat();f.client.setRunning(true);f.client.setRevision('same-source:fast');
  const refreshing=f.client.refresh();await settle();
- assert.deepEqual(f.requests.map(request=>request.path),['/api/status?since=1','/api/status?since=0']);assert(f.requests.every(request=>request.method===undefined),'both requests are read only status GETs');
+ assert.deepEqual(f.requests.map(request=>request.path),['/api/status?since=1&channel=1','/api/status?since=0&channel=1']);assert(f.requests.every(request=>request.method===undefined),'both requests are read only status GETs');
  assert.equal(f.client.getRoom().instanceId,'old-server');assert.equal(f.element('chat-log').children[0].dataset.messageId,'old-history','keep existing history while the replacement snapshot loads');
  releaseHistory(response({...status,room:{...status.room,messages:[newMessage]}}));await refreshing;
  assert.equal(f.requests.length,2);assert.equal(f.client.getRoom().instanceId,'new-server');assert.equal(f.client.getRoom().version,1);assert.deepEqual(plain(f.client.getRoom().messages),[newMessage]);
@@ -512,3 +512,4 @@ test('member details return focus to a stable opener or the members heading when
  title.focus();title.click();f.element('members-search').value='لا يطابق';f.element('members-search').dispatchEvent({type:'input'});assert.equal(title.isConnected,false);
  f.element('viewer-details-close').click();assert.equal(f.document.activeElement,f.element('members-heading'));assert.equal(f.element('viewer-details-dialog').open,false);
 });
+

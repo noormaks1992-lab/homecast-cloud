@@ -1,149 +1,57 @@
 {
-  "date": "2026-10-18",
-  "version": "3.2.0-public-arena.1",
-  "scope": "Local release evidence plus separately recorded production deployment; see deployment-2026-10-18.json",
-  "restoredSnapshotTests": {
-    "tests": 179,
-    "passed": 179,
+  "status": "deployed and production checked 2026-10-20",
+  "fullSuite": {
+    "tests": 157,
+    "passed": 154,
+    "failed": 1,
+    "skipped": 2,
+    "log": "dual-release-suite.log",
+    "failure": "portable supervisor heartbeat fixture exceeded its old 10s startup budget under full-suite load"
+  },
+  "finalTargetedRun": {
+    "tests": 4,
+    "passed": 2,
     "failed": 0,
-    "skipped": 0,
-    "durationSeconds": 96.942
+    "skipped": 2,
+    "log": "supervisor-channels-final.log",
+    "details": "Actual dual-stream decode/isolation/persistence test and portable heartbeat crash/restart/cleanup test passed concurrently after allowing 25s startup in resource-shared test environment; no production startup/restart timing changed."
   },
-  "npmAuditKnownVulnerabilities": 0,
-  "dependencyAuditNote": "Previously audited locked dependencies are unchanged by 3.2.",
-  "coverage": [
-    "public registration and HttpOnly hashed-token identities",
-    "owner-only private presence and analytics",
-    "account roles, moderation, persistence failure and same-cookie restoration",
-    "SSE bounded deltas, backpressure and revoked sessions",
-    "optional device and rounded location sharing, immediate clearing and stale-report rejection",
-    "Baghdad current/day/total playback counters",
-    "stable legacy M3U and explicit invite keys",
-    "FFmpeg independent transport, adaptive source budgets and crash recovery"
-  ],
-  "publicMemberEmergency100Kbps": {
-    "passed": true,
-    "role": "member",
-    "mode": "emergency",
-    "limitKbps": 100,
-    "shaping": {
-      "cacheDisabled": true,
-      "downloadKbps": 100,
-      "uploadKbps": 50,
-      "latencyMs": 100,
-      "coldContext": true,
-      "allBrowserHTTP": true
-    },
-    "coldPageToPlaybackSeconds": 33.452,
-    "joinedToPlaybackSeconds": 7.455,
-    "elapsedSeconds": 74.2,
-    "playbackAdvanceSeconds": 40.680973,
-    "bufferSeconds": 23.30899399999999,
-    "stalls": 0,
-    "sustainedStalls": 0,
-    "encodedHTTPBytesIncludingInflight": 856004,
-    "encodedMediaBytes": 492744,
-    "primaryRequests": [],
-    "replayRequests": [],
-    "ownerBrowserRequests": [],
-    "ownerCookiePresent": false,
-    "telegramDialogSeen": true,
-    "errors": []
+  "pidNamespaceEvidence": {
+    "nodePid": 5,
+    "procSelfPid": 6483,
+    "reason": "Two Linux proc/PID assertions are skipped only when /proc and Node PID namespaces differ; remain active on matching Linux hosts."
   },
-  "sseDuring100Kbps": {
-    "events": 3,
-    "payloadBytes": 2074,
-    "maxPayloadBytes": 778,
-    "ownerMessageLatencySeconds": 0.297,
-    "ownerRendered": true,
-    "memberMessageRendered": true,
-    "privacyLeaks": []
+  "otherValidation": {
+    "runtimeAndSecurity": "15/15 passed",
+    "publicEntryClient": "35/35 passed",
+    "majedRestart": "Passed isolated after an earlier full-suite keep-alive socket race"
   },
-  "browserTransportKbps": 61,
-  "browserAnalytics": {
-    "currentUnique": 1,
-    "currentWatchSeconds": 30,
-    "timeZone": "Asia/Baghdad"
+  "liveBefore": {
+    "version": "3.3.0",
+    "release": "3.3.0-clubhouse.1",
+    "appSha256": "a4c975ec33f52bd219d359a11610c66c95ecb9cd94f98487387b736ddf5f79d3",
+    "streamReady": false
   },
-  "browserInitializationNote": "One manifest request was aborted during initialization; no post-start playback stalls or JavaScript errors.",
-  "interfaceBrowserChecks": [
-    "actual public welcome registration",
-    "mandatory welcome Escape protected",
-    "stable username readonly",
-    "clean public share link",
-    "optional Telegram after signup, daily dismissal",
-    "nonowner counts/roster/analytics hidden",
-    "native drawer focus containment/Escape/restore",
-    "theme/accent/font/compact/chat/motion live and persisted",
-    "320/390/768/1440 zero horizontal overflow",
-    "OS reduced motion and weak-network decoration savings",
-    "actual owner member details and analytics",
-    "owner chat toggle delivered live by SSE",
-    "no voice/invitation loads"
-  ],
-  "finalAdminBrowserChecks": [
-    "14 synthetic members, filtering and pagination",
-    "owner identity/role editing",
-    "moderator-to-stream permission change",
-    "block/restore with the original member cookie",
-    "member settings rejected with HTTP403",
-    "zero JavaScript errors"
-  ],
-  "weak500KbpsEarlierPipelineEvidence": {
-    "beforePublicMembershipChanges": true,
-    "sameEncoderPipeline": true,
-    "passed": true,
-    "limitKbps": 500,
-    "startupSeconds": 9.846,
-    "playbackSeconds": 40.623465,
-    "stalls": 0
-  },
-  "deliveredTransportKbps": {
-    "highMotionPrimary": 4385,
-    "weak720": 742,
-    "emergency144": 53,
-    "alreadyEconomicalPrimary": 280,
-    "adaptiveWeak": 216
+  "liveSource": "New public v2 boot/API and both declared HLS manifests returned200. Botkeep media playback and actual segment decode not established.",
+  "hosting": {
+    "project": "83275da8-1731-45e5-a55e-91e3a564cf88",
+    "status": "Running",
+    "startup": "node --env-file-if-exists=.env github-start.mjs",
+    "pinnedRelease": "3.4.0-dual-channel.1"
   },
   "production": {
-    "site": "https://dshoof.bot-keep.xyz/",
-    "adminLoginVerified": true,
-    "privateRuntimeDataBackup": true,
-    "privateRuntimeCodeBackup": true,
-    "releaseAtInspection": "installed / 3.0.0",
-    "streamReadyAtInspection": false,
-    "savedProviderApiAvailable": true,
-    "savedProviderPlaylistStatusFromCloud": 403,
-    "officialDeveloperApiVerified": true,
-    "secureCredentialBound": true,
-    "requiredSecret": "BOTKEEP_API_KEY",
-    "deployed": true,
-    "restarted": true,
-    "releaseAfterDeployment": "3.2.0-public-arena.1",
-    "versionAfterDeployment": "3.2.0",
-    "savedProviderPlaylistStatusFromHosting": 403,
-    "deploymentRecord": "deployment-2026-10-18.json",
-    "actualHostingWritesPerformed": true
-  },
-  "limitations": [
-    "Production deployment and restart completed; direct live Chromium verification is blocked by the isolated browser environment proxy certificate trust.",
-    "The 100kbps fixture and chat latency are local observations, not Botkeep CPU or real-provider performance guarantees.",
-    "The saved real provider playlist returned403 from the cloud environment; real provider playback remains unverified.",
-    "No actual Safari or physical IPTV receiver validation.",
-    "Playback counters begin with feature activation; YouTube embeds and external IPTV clients are not counted without verified player reports.",
-    "Browser APIs do not reveal an ISP subscription or independently verify Telegram membership; optional telemetry may be unavailable."
-  ],
-  "botkeepClientOfflineTests": {
-    "passed": 21,
-    "realHostingWritesPerformed": false
-  },
-  "updaterBootIdentity": {
-    "testsPassed": 7,
-    "rejectsUnrelatedOldListener": true,
-    "legacyRollbackRequiresManualOriginalLauncher": true
-  },
-  "snapshotSha256": "e832efab3a61e25e05004a06e55ea73b323b483658b6e5e23ec80e759237d6f4",
-  "changedRuntimeFiles": 27,
-  "deltaArchiveSha256": "2f40ef24fd237b6f7ce5123065d27d9de287a7c9187d19273230be35d3f37b9b",
-  "deltaArchiveNote": "Changed runtime files only; the conditional pinned launcher is a separate reviewed deployment step. No data, secrets or production settings included."
+    "release": "3.4.0-dual-channel.1",
+    "healthHTTP": 200,
+    "frontendHashesMatch": true,
+    "ownerLogin": true,
+    "majedV2ActualPlayback": {
+      "width": 1280,
+      "height": 720,
+      "mediaError": null
+    },
+    "bothChannelEnginesPlayed": true,
+    "sourceUsedForBoth": "User-supplied Majed watch-card URL",
+    "stateIdentityPreserved": true,
+    "restoreCopiesOnHost": true
+  }
 }
