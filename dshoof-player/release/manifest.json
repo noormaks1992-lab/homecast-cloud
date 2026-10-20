@@ -28,7 +28,7 @@
       "path": "public/app.js",
       "beforeSha256": "a4c975ec33f52bd219d359a11610c66c95ecb9cd94f98487387b736ddf5f79d3",
       "afterSha256": "d163f5ac5e24becaea84c7cf47620a779e47fd53fb2c1a2376b8b96d3bcccacf",
-      "bytes": 65457
+      "bytes": 65474
     },
     {
       "path": "public/beta.js",
@@ -40,7 +40,7 @@
       "path": "public/index.html",
       "beforeSha256": "6905f586c91f8b561b38c8606d90f62bf816b9d284a917605f0c03cdfc60a626",
       "afterSha256": "6cce64adf87d64ef91dcb1d9934ddecc52da70c14511d011402789d8f4f62884",
-      "bytes": 44709
+      "bytes": 44620
     },
     {
       "path": "public/style.css",

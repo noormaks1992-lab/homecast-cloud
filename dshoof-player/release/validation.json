@@ -1,5 +1,5 @@
 {
-  "status": "prepared, not deployed",
+  "status": "deployed and production checked 2026-10-20",
   "fullSuite": {
     "tests": 157,
     "passed": 154,
@@ -33,5 +33,25 @@
     "streamReady": false
   },
   "liveSource": "New public v2 boot/API and both declared HLS manifests returned200. Botkeep media playback and actual segment decode not established.",
-  "hosting": "Interactive Botkeep sign-in required; no file writes or power actions in this session."
+  "hosting": {
+    "project": "83275da8-1731-45e5-a55e-91e3a564cf88",
+    "status": "Running",
+    "startup": "node --env-file-if-exists=.env github-start.mjs",
+    "pinnedRelease": "3.4.0-dual-channel.1"
+  },
+  "production": {
+    "release": "3.4.0-dual-channel.1",
+    "healthHTTP": 200,
+    "frontendHashesMatch": true,
+    "ownerLogin": true,
+    "majedV2ActualPlayback": {
+      "width": 1280,
+      "height": 720,
+      "mediaError": null
+    },
+    "bothChannelEnginesPlayed": true,
+    "sourceUsedForBoth": "User-supplied Majed watch-card URL",
+    "stateIdentityPreserved": true,
+    "restoreCopiesOnHost": true
+  }
 }
