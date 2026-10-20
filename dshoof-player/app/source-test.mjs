@@ -23,3 +23,26 @@ for(let i=0;i<40;i++){try{if((await fetch(origin+'/healthz')).ok)break;}catch{}a
 cookie=await login();const restartStatus=await(await fetch(origin+'/api/status',{headers:{cookie}})).json();assert.equal(restartStatus.stopped,true);assert.equal(restartStatus.playlist,before.playlist);
 r=await post({kind:'url',url:'https://youtu.be/M7lc1UVf-VE'});assert.equal(r.status,200);const after=await(await fetch(origin+'/api/status',{headers:{cookie}})).json();assert.equal(after.selection.kind,'youtube');assert.equal(after.selection.videoId,'M7lc1UVf-VE');assert.equal(after.playlist,before.playlist);assert.equal((await fetch(origin+'/live/dshoof.m3u8',{headers:{cookie}})).status,409);const persisted=JSON.parse(await readFile(path.join(dir,'data/state.json'),'utf8'));assert.equal(persisted.owner,state.owner);assert.equal(persisted.viewer,state.viewer);
 }finally{if(child){child.kill();await new Promise(r=>child.once('exit',r));}if(fixture)await new Promise(r=>fixture.close(r));await rm(dir,{recursive:true,force:true});}});
+
+
+test('an upstream abort before the caller starts reading is handled and remains observable to readers',async()=>{
+ const {createPublicOpener,readLimited}=await import('./sources.mjs');const {PassThrough}=await import('node:stream');const {EventEmitter}=await import('node:events');
+ const response=new PassThrough();response.statusCode=200;response.headers={};
+ const request=(_url,_options,done)=>{const req=new EventEmitter();req.setTimeout=()=>{};req.end=()=>{done(response);queueMicrotask(()=>response.destroy(Object.assign(Error('client disconnected'),{code:'ABORT_ERR'})));};return req;};
+ const open=createPublicOpener({resolve:async()=>[{address:'8.8.8.8',family:4}],httpRequest:request});const result=await open('http://fixture.example/video');await assert.rejects(readLimited(result.response),/client disconnected/);
+});
+
+
+test('upstream DNS, timeout and abort failures are caught by the real HTTP router',async()=>{
+ const {readFile}=await import('node:fs/promises'),{default:vm}=await import('node:vm');
+ const code=await readFile(new URL('./server.mjs',import.meta.url),'utf8');
+ for(const codeName of ['EAI_AGAIN','ETIMEDOUT','ABORT_ERR']){
+  const channel={live:async()=>true,input:async()=>{await Promise.resolve();throw Object.assign(Error(codeName),{code:codeName});}};
+  const context={URL,console:{log(){}},http:{createServer:fn=>fn},publicOrigin:()=> 'http://localhost',channelById:()=>channel,channels:[channel],process:{env:{}},json:(res,data,status=200)=>{res.data=data;res.status=status;}};
+  vm.createContext(context);const handler=vm.runInContext(code.slice(code.indexOf('const server=http.createServer('),code.indexOf('server.requestTimeout=')).replaceAll('import.meta.url',JSON.stringify(import.meta.url))+';server;',context);
+  const response=()=>({setHeader(){},headersSent:false,destroyed:false,destroy(){this.destroyed=true;}}),r=response();
+  await assert.doesNotReject(()=>handler({method:'GET',url:'/_input?channel=1',headers:{}},r));assert.equal(r.status,502);assert.equal(r.data.error,codeName);
+  const health=response();await handler({method:'GET',url:'/healthz',headers:{}},health);assert.equal(health.status,200);assert.equal(health.data.status,'ok');
+  const closed=response();closed.destroyed=true;await assert.doesNotReject(()=>handler({method:'GET',url:'/_input',headers:{}},closed));assert.equal(closed.data,undefined);
+ }
+});

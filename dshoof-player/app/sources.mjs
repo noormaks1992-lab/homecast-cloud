@@ -17,7 +17,7 @@ export function createPublicOpener({resolve=lookup,httpRequest=http.request,http
   if(!records.length||records.some(x=>!publicIPv4(x.address)))throw Error('العنوان لا يشير إلى خادم إنترنت عام');
   const address=records[0].address,selected=sourceHeaders(headers);
   const response=await new Promise((resolve,reject)=>{
-   const request=(u.protocol==='https:'?httpsRequest:httpRequest)(u,{method:'GET',headers:{'User-Agent':'DshoofPlayer/3.0','Accept-Encoding':'identity',...selected},signal:options.signal,lookup:(_h,opts,cb)=>opts?.all?cb(null,[{address,family:4}]):cb(null,address,4)},response=>{clearTimeout(timer);resolve(response);});
+   const request=(u.protocol==='https:'?httpsRequest:httpRequest)(u,{method:'GET',headers:{'User-Agent':'DshoofPlayer/3.0','Accept-Encoding':'identity',...selected},signal:options.signal,lookup:(_h,opts,cb)=>opts?.all?cb(null,[{address,family:4}]):cb(null,address,4)},response=>{response.on('error',()=>{});clearTimeout(timer);resolve(response);});
    const timer=setTimeout(()=>request.destroy(Error('انتهت مهلة استجابة مصدر الفيديو')),15000);timer.unref?.();
    request.setTimeout(15000,()=>request.destroy(Error('انتهت مهلة مصدر الفيديو')));
    request.on('error',error=>{clearTimeout(timer);reject(error);});request.end();

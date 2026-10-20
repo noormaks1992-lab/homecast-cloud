@@ -136,7 +136,7 @@ const server=http.createServer(async(req,res)=>{
   return json(res,{error:'إجراء غير متاح'},404);
  }
  if(req.method!=='GET'&&req.method!=='HEAD')return json(res,{error:'طريقة غير مدعومة'},405);
-if(p==='/_input')return channelById(url.searchParams.get('channel')).input(req,res,url);
+if(p==='/_input'){await channelById(url.searchParams.get('channel')).input(req,res,url);return;}
 
  if(p==='/api/events'){if(req.method!=='GET')return json(res,{error:'طريقة غير متاحة'},405);await chatEvents.handle(req,res,{access:()=>access(req,url),snapshot:(a,since)=>room.snapshot(a,since),subscribe:fn=>room.subscribe(fn)});return;}
  if(p==='/api/pro/qr'){const a=access(req,url);if(!a||a.limited)return json(res,{error:'غير مسموح'},403);pro.remote(a,{code:url.searchParams.get('code'),action:'read'});let qr;try{qr=createRequire(import.meta.url)('qrcode');}catch{return json(res,{error:'لم تثبت حزمة QR بعد'},503);}res.setHeader('Content-Type','image/svg+xml');return res.end(await qr.toString(origin+'/remote?code='+url.searchParams.get('code'),{type:'svg',width:220}));}
@@ -175,7 +175,7 @@ if(p==='/_input')return channelById(url.searchParams.get('channel')).input(req,r
  if(compressible)res.setHeader('Vary','Accept-Encoding');
  if(encoding){const variant=f+':'+encoding;if(!staticCache.has(variant))staticCache.set(variant,await (encoding==='br'?compressBrotli(bytes,{params:{[zlibConstants.BROTLI_PARAM_QUALITY]:4}}):compressGzip(bytes,{level:6})));bytes=staticCache.get(variant);res.setHeader('Content-Encoding',encoding);}
  res.setHeader('Content-Length',bytes.length);res.setHeader('Content-Type',f.endsWith('.js')?'text/javascript; charset=utf-8':f.endsWith('.css')?'text/css':f.endsWith('.webp')?'image/webp':f.endsWith('.png')?'image/png':f.endsWith('.svg')?'image/svg+xml':f.endsWith('.woff2')?'font/woff2':f.endsWith('.md')?'text/plain; charset=utf-8':f.endsWith('.webmanifest')?'application/manifest+json':'text/html; charset=utf-8');if(p!=='/'&&p!=='/watch'){res.setHeader('Cache-Control',p==='/sw.js'?'no-cache':'public, max-age=3600');const etag='"'+hash(bytes)+'"';res.setHeader('ETag',etag);if(req.headers['if-none-match']===etag){res.writeHead(304);return res.end();}}if(req.method==='HEAD')return res.end();res.end(bytes);
- }catch(e){if(req.url?.split('?')[0]==='/_input')console.log('[input-error] '+String(e.message).replace(/https?:\/\/[^\s"']+/g,'[source-url]').slice(0,240)); if(res.headersSent){res.destroy();return;}json(res,{error:e.code==='ENOENT'?'المحتوى غير متاح':e.message},e.code==='ENOENT'?404:e.httpStatus===403?403:400);}
+ }catch(e){if(req.url?.split('?')[0]==='/_input')console.log('[input-error] '+String(e.message).replace(/https?:\/\/[^\s"']+/g,'[source-url]').slice(0,240)); if(res.destroyed)return;if(res.headersSent){res.destroy();return;}json(res,{error:e.code==='ENOENT'?'المحتوى غير متاح':e.message},e.code==='ENOENT'?404:e.httpStatus===403?403:req.url?.split('?')[0]==='/_input'?502:400);}
 });
 server.requestTimeout=20000;server.headersTimeout=15000;
 server.listen(inputPort,process.env.BIND_HOST||'0.0.0.0',()=>console.log('Dshoof Player 3.5 listening; private owner access is in data/owner-link.txt'));
