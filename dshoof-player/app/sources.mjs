@@ -185,6 +185,9 @@ export async function extractPageSource(value,{open=openPublic,inspect=inspectDi
   if(text.trimStart().startsWith('#EXTM3U'))return {url:final,format:'hls',headers};
   if(!/<(?:html|video|iframe|source|script|meta)\b/i.test(text))throw Error('الصفحة لم توفر مشغّلًا قابلًا للاستخراج');
   const candidates=pageCandidates(text,final);
+  // Read at most two published configuration scripts as text, within the shared request budget.
+  for(const script of candidates.scripts){if(requests>=8)break;try{requests++;const resource=await open(inputURL(script).href,{'User-Agent':'Mozilla/5.0',Referer:final,Origin:new URL(final).origin});const config=(await readLimited(resource.response,524288)).toString('utf8');const extra=pageCandidates(config,final);candidates.direct.push(...extra.direct);candidates.frames.push(...extra.frames);}catch{}}
+  candidates.direct=[...new Set(candidates.direct)].slice(0,8);candidates.frames=[...new Set(candidates.frames)].slice(0,4);
   for(const target of candidates.direct){if(requests>=10)break;try{requests++;const direct=await inspect(inputURL(target).href,{'User-Agent':'Mozilla/5.0',Referer:final,Origin:new URL(final).origin});return {...direct,headers:{'User-Agent':'Mozilla/5.0',Referer:final,Origin:new URL(final).origin}};}catch{}}
   for(const frame of candidates.frames){try{if(new URL(frame).hostname==='player.majed-koora.live'&&new URL(frame).pathname==='/v2/embed.php')return await resolveMajedV2(frame,final,{open,inspect});return await visit(frame,final,depth+1);}catch{}}
   throw Error('لم يمكن استخراج فيديو متاح؛ قد تتطلب الصفحة تسجيل دخول أو DRM أو تشغيل JavaScript داخل متصفح');

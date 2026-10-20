@@ -25,7 +25,7 @@ test('owner updates normalized identity and delegated roles durably without chan
 test('member updates reject duplicates, reserved identities, bad avatars, roles and unsupported actions',async()=>{
  const {state,room,id}=await fixture();await room.join({username:'another_user',name:'اسم ثان'},req());state.ownerProfile={name:'صاحب القناة'};
  for(const changes of [{username:'ＡＮＯＴＨＥＲ_USER'},{username:'admin'},{name:'ad\u200bmin'},{name:'صاحب\u2066 القناة'},{name:'x'},{avatar:'javascript:alert(1)'},{role:'observer'},{role:'OWNER'}])await assert.rejects(room.manageMember(owner,{action:'update',id,...changes}));
- await assert.rejects(room.manageMember(owner,{action:'delete',id}),/غير صالح/);await assert.rejects(room.manageMember(owner,{action:'update',id:'missing'}),/غير موجود/);assert.equal(state.members.length,2);assert.equal(state.members[0].username,'viewer_one');
+ await assert.rejects(room.manageMember(owner,{action:'unknown',id}),/غير صالح/);await assert.rejects(room.manageMember(owner,{action:'update',id:'missing'}),/غير موجود/);assert.equal(state.members.length,2);assert.equal(state.members[0].username,'viewer_one');
 });
 
 test('restore re-enables the same revoked browser identity and mute supports explicit state',async()=>{
@@ -57,3 +57,4 @@ test('mute authorization and concurrent update/revoke follow durable queue order
  let pending=null,entered=null;const mutable=await fixture(async()=>{if(pending){const current=pending;pending=null;entered.resolve();await current.promise;}});const memberReq=req(cookie(mutable.joined));pending=deferred();const muteGate=pending;entered=deferred();const muted=mutable.room.manageMember(owner,{action:'mute',id:mutable.id,muted:true});await entered.promise;assert.equal(mutable.room.access(memberReq,url).muted,false);muteGate.resolve();await muted;assert.equal(mutable.room.access(memberReq,url).muted,true);
  pending=deferred();const unmuteGate=pending;entered=deferred();const unmuted=mutable.room.manageMember(owner,{action:'mute',id:mutable.id,muted:false});await entered.promise;assert.equal(mutable.room.access(memberReq,url).muted,true);unmuteGate.resolve();await unmuted;assert.equal(mutable.room.access(memberReq,url).muted,false);
 });
+

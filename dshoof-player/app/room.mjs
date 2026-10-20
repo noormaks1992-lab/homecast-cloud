@@ -1,5 +1,6 @@
 import {randomBytes,createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {isIP} from 'node:net';
+import {publicClientIP,canonicalIP} from './ip-policy.mjs';
 export const shortKey=()=>randomBytes(9).toString('base64url');
 export const hash=x=>createHash('sha256').update(x).digest('hex');
 export function equal(a,b){if(typeof a!=='string'||typeof b!=='string')return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
@@ -9,6 +10,9 @@ export function createRoom(state,persist){
  state.playlistAlias||=shortKey();state.stopped??=false;state.settings={name:'لمّة دشوف',chatEnabled:true,reactionsEnabled:true,slowSeconds:1,maxViewers:3,announcement:'',...state.settings};state.invites||=[];state.members??=[];if(!Array.isArray(state.members))throw Error('بيانات المشاهدين غير صالحة');
  let version=1,messages=state.roomHistory?.messages||[],reactions=state.roomHistory?.reactions||{like:0,love:0,heart:0},events=[],poll=state.roomHistory?.poll||null;const reactionPeople=new Map(state.roomHistory?.reactionPeople||[]),voteNames=new Map(state.roomHistory?.voteNames||[]);const votes=new Map(state.roomHistory?.votes||[]),active=new Map(),presence=new Map(),rates=new Map(),typing=new Map();
  let typingTimer=null;const listeners=new Set(),pendingMemberAuth=new Map(),memberTokens=new Map(state.members.filter(m=>typeof m.tokenHash==='string').map(m=>[m.tokenHash,m])),joinRates=new Map();let joinQueue=Promise.resolve(),joinWindow={at:Date.now(),count:0};
+ state.ipBans=Array.isArray(state.ipBans)?state.ipBans.filter(x=>canonicalIP(x.ip)&&typeof x.memberId==='string').slice(-1000):[];let committedBans=state.ipBans;
+ function isBanned(req){const address=publicClientIP(req);return !!address&&committedBans.some(x=>canonicalIP(x.ip)===address.ip);}
+ function rememberIP(member,req){const address=publicClientIP(req);if(address)member.lastNetwork=address;}
  const memberAge=365*24*3600000;
  const normalizedUsername=value=>{if(typeof value!=='string')throw Error('أدخل اسم مستخدم');const name=value.normalize('NFKC').trim().toLowerCase();if(!/^[a-z0-9_]{3,24}$/.test(name))throw Error('اسم المستخدم من 3 إلى 24 حرفًا لاتينيًا أو رقمًا أو شرطة سفلية');if(['admin','administrator','owner','host','moderator','support','system','root','dshoof'].includes(name))throw Error('اسم المستخدم محجوز للإدارة');return name;};
  const cleanName=value=>{if(typeof value!=='string')throw Error('أدخل الاسم الظاهر');const name=value.normalize('NFKC').replace(/[\p{Cc}\p{Cf}]/gu,'').trim();if([...name].length<2||[...name].length>32)throw Error('اختر اسمًا ظاهرًا من حرفين إلى 32 حرفًا');return name;};
@@ -19,11 +23,11 @@ export function createRoom(state,persist){
  const publicMember=m=>({id:m.id,username:m.username,name:m.name,avatar:m.avatar||'purple',role:['viewer','stream','moderator','observer'].includes(memberAuth(m).role)?memberAuth(m).role:'viewer'});
  function joinRate(req){const now=Date.now(),key=req?.socket?.remoteAddress||'local';if(now-joinWindow.at>=600000)joinWindow={at:now,count:0};let record=joinRates.get(key);if(!record||now-record.at>=600000){if(joinRates.size>=2000){for(const[k,v]of joinRates)if(now-v.at>=600000)joinRates.delete(k);if(joinRates.size>=2000)throw Error('طلبات تسجيل كثيرة؛ حاول لاحقًا');}record={at:now,count:0};joinRates.set(key,record);}if(record.count>=12||joinWindow.count>=60)throw Error('طلبات تسجيل كثيرة؛ انتظر قليلًا ثم حاول');record.count++;joinWindow.count++;}
  async function join(b,req={headers:{},socket:{}}){
-  const existing=memberSession(req);if(existing)return {sessionCookie:existing.token,member:publicMember(existing.record)};
+  if(isBanned(req))throw Object.assign(Error('حظر المضيف عنوان اتصالك'),{httpStatus:403});const existing=memberSession(req);if(existing)return {sessionCookie:existing.token,member:publicMember(existing.record)};
   const username=normalizedUsername(b.username),name=checkName(cleanName(b.name??b.displayName));joinRate(req);
   const operation=joinQueue.catch(()=>{}).then(async()=>{
-   if(state.members.length>=1000)throw Error('اكتمل سجل المشاهدين؛ تواصل مع المضيف');if(state.members.some(m=>m.username===username))throw Error('اسم المستخدم مستخدم؛ اختر اسمًا آخر. لا يمكن استعادة حساب بالاسم وحده');
-   const secret=randomBytes(32).toString('base64url'),record={id:'m_'+randomBytes(12).toString('base64url'),username,name,avatar:['purple','gold','blue','green'].includes(b.avatar)?b.avatar:'purple',tokenHash:hash(secret),createdAt:Date.now(),expires:Date.now()+memberAge,revoked:false,muted:false,role:'viewer'};state.members.push(record);memberTokens.set(record.tokenHash,record);
+   if(isBanned(req))throw Object.assign(Error('حظر المضيف عنوان اتصالك'),{httpStatus:403});if(state.members.length>=1000)throw Error('اكتمل سجل المشاهدين؛ تواصل مع المضيف');if(state.members.some(m=>m.username===username))throw Error('اسم المستخدم مستخدم؛ اختر اسمًا آخر. لا يمكن استعادة حساب بالاسم وحده');
+   const secret=randomBytes(32).toString('base64url'),record={id:'m_'+randomBytes(12).toString('base64url'),username,name,avatar:['purple','gold','blue','green'].includes(b.avatar)?b.avatar:'purple',tokenHash:hash(secret),createdAt:Date.now(),expires:Date.now()+memberAge,revoked:false,muted:false,role:'viewer'};rememberIP(record,req);state.members.push(record);memberTokens.set(record.tokenHash,record);
    try{await persist();}catch(error){state.members=state.members.filter(m=>m!==record);memberTokens.delete(record.tokenHash);await persist().catch(()=>{});throw error;}
    bump();return {sessionCookie:secret,member:publicMember(record)};
   });joinQueue=operation.then(()=>{},()=>{});return operation;
@@ -44,12 +48,13 @@ export function createRoom(state,persist){
  function touchPresence(connection,details){const previous=presence.get(connection)||{};if(!presence.has(connection)&&presence.size>=1000)presence.delete(presence.keys().next().value);presence.delete(connection);presence.set(connection,{...previous,...details,at:Date.now(),joined:previous.joined||Date.now()});}
  function access(req,url,{lease=false,legacy=false}={}){
   if(owner(req))return {owner:true,key:state.viewer,id:'owner',username:'owner',name:state.ownerProfile?.name||'المضيف'};
+  if(isBanned(req))return null;
   if(legacy&&url.searchParams.has('key')){const explicit=legacyAccess(req,url);if(explicit)return explicit;}
   const session=memberSession(req);
   if(session){
    const member=session.record,connection=hash('member:'+member.id+':'+member.tokenHash);clean();touchPresence(connection,{member:member.id,name:member.name,username:member.username,avatar:member.avatar||'purple'});
    if(lease){if(!active.has(connection)&&active.size>=state.settings.maxViewers)return {limited:true,reason:'اكتمل عدد المشاهدين في الغرفة؛ حاول بعد خروج أحدهم.'};const previous=active.get(connection)||{};active.set(connection,{...previous,at:Date.now(),member:member.id,name:member.name,username:member.username,avatar:member.avatar||'purple',joined:previous.joined||Date.now()});}
-   member.lastSeen=Date.now();return {...publicMember(member),member:true,connection,muted:!!memberAuth(member).muted};
+   member.lastSeen=Date.now();rememberIP(member,req);return {...publicMember(member),member:true,connection,muted:!!memberAuth(member).muted};
   }
   return legacyAccess(req,url);
  }
@@ -74,7 +79,7 @@ export function createRoom(state,persist){
    const {name,username,joined,at,report,info}=value,row={name,username,joined,at,report,info,watching:!!lease,watchAt:lease?.at};
    for(const kind of ['invite','member'])if(value[kind]!==undefined){const key=kind+':'+value[kind];let group=groups.get(key);if(!group){group={connections:[],info:null,report:null};groups.set(key,group);}group.connections.push(row);if(info&&(!group.info||(info.at||0)>(group.info.at||0)))group.info=info;if(report&&(!group.report||(report.at||0)>(group.report.at||0)))group.report=report;}
   }
-  const status=(kind,id)=>{const group=groups.get(kind+':'+id);return {online:!!group?.connections.length,info:group?.info||null,report:group?.report||null,connections:group?.connections||[]};};
+  const status=(kind,id)=>{const group=groups.get(kind+':'+id),record=(kind==='member'?state.members:state.invites).find(x=>x.id===id);return {online:!!group?.connections.length,info:group?.info||record?.diagnostics?.info||null,report:group?.report||record?.diagnostics?.report||null,connections:group?.connections||[],lastSeen:record?.lastSeen||null,deletedAt:record?.deletedAt||null,network:record?.lastNetwork||null,ipBlocked:committedBans.some(x=>x.memberId===id),ipBanAvailable:!!record?.lastNetwork?.ip};};
   return [...state.invites.map(x=>({id:x.id,kind:'invite',name:x.name,displayName:x.profileName||x.name,avatar:x.avatar||'purple',expires:x.expires,expiresAt:x.expires,revoked:!!x.revoked,muted:!!x.muted,devices:x.devices||1,role:x.role||'viewer',url:x.slug?origin+'/w/'+x.slug:null,...status('invite',x.id)})),...state.members.map(m=>({...publicMember(m),kind:'member',displayName:m.name,createdAt:m.createdAt,joinedAt:m.createdAt,expires:m.expires,expiresAt:m.expires,revoked:!!m.revoked,muted:!!m.muted,url:null,...status('member',m.id)}))];
  }
  async function invite(b,origin){state.invites=state.invites.filter(x=>!x.revoked&&x.expires>Date.now()).slice(-49);const key=shortKey();const record={id:shortKey(),slug:key,hash:hash(key),name:String(b.name||'صديق').trim().slice(0,40)||'صديق',expires:Date.now()+Math.min(720,Math.max(1,Number(b.hours)||24))*3600000,role:['viewer','stream','moderator','observer'].includes(b.role)?b.role:'viewer',devices:Math.min(3,Math.max(1,Math.floor(Number(b.devices)||1)))};state.invites.push(record);await persist();bump();return {url:origin+'/w/'+key,id:record.id,expires:record.expires};}
@@ -91,20 +96,24 @@ export function createRoom(state,persist){
  async function moderate(b){if(b.action==='all'||state.members.some(member=>member.id===b.id)){const operation=joinQueue.catch(()=>{}).then(()=>moderateNow(b));joinQueue=operation.then(()=>{},()=>{});return operation;}return moderateNow(b);}
  async function manageMember(a,b){
   if(a?.owner!==true)throw Error('إدارة الحسابات للمالك فقط');
-  if(!b||!['update','restore','mute'].includes(b.action)||typeof b.id!=='string')throw Error('إجراء الحساب غير صالح');
+  if(!b||!['update','restore','mute','delete','ban-ip','unban-ip'].includes(b.action)||typeof b.id!=='string')throw Error('إجراء الحساب غير صالح');
   const operation=joinQueue.catch(()=>{}).then(async()=>{
    const member=state.members.find(value=>value.id===b.id);if(!member)throw Error('حساب المشاهد غير موجود');
-   const changes={};
+   const changes={},previousBans=state.ipBans;
    if(b.action==='update'){
     changes.username=b.username===undefined?member.username:normalizedUsername(b.username);changes.name=checkName(cleanName(b.name??b.displayName??member.name));
     if(state.members.some(value=>value.id!==member.id&&value.username===changes.username))throw Error('اسم المستخدم مستخدم؛ اختر اسمًا آخر');
     if(b.avatar!==undefined&&!['purple','gold','blue','green'].includes(b.avatar))throw Error('اختر صورة رمزية صالحة');changes.avatar=b.avatar??member.avatar??'purple';
     if(b.role!==undefined&&!['viewer','stream','moderator'].includes(b.role))throw Error('صلاحية الحساب غير صالحة');changes.role=b.role??publicMember(member).role;
-   }else if(b.action==='restore')changes.revoked=false;
+   }else if(b.action==='restore'){changes.revoked=false;changes.deletedAt=null;}
+   else if(b.action==='delete'){changes.revoked=true;changes.deletedAt=Date.now();}
+   else if(b.action==='ban-ip'){const ip=canonicalIP(member.lastNetwork?.ip);if(!ip)throw Error('لم يتم التحقق من عنوان العميل؛ يجب ضبط بروكسي الاستضافة قبل حظر IP');if(state.ipBans.length>=1000)throw Error('قائمة حظر الشبكات ممتلئة');changes.revoked=true;state.ipBans=[...state.ipBans.filter(x=>!(x.ip===ip&&x.memberId===member.id)),{ip,memberId:member.id,at:Date.now()}];}
+   else if(b.action==='unban-ip'){state.ipBans=state.ipBans.filter(x=>x.memberId!==member.id);changes.revoked=false;}
    else{if(b.muted!==undefined&&typeof b.muted!=='boolean')throw Error('حالة الكتم غير صالحة');changes.muted=b.muted??!member.muted;}
    const previous=Object.fromEntries(Object.keys(changes).map(key=>[key,{had:Object.hasOwn(member,key),value:member[key]}]));pendingMemberAuth.set(member.id,{role:member.role,revoked:!!member.revoked,muted:!!member.muted});Object.assign(member,changes);
-   try{await persist();}catch(error){for(const[key,old]of Object.entries(previous))if(old.had)member[key]=old.value;else delete member[key];pendingMemberAuth.delete(member.id);await persist().catch(()=>{});throw error;}
-   pendingMemberAuth.delete(member.id);
+   try{await persist();}catch(error){state.ipBans=previousBans;for(const[key,old]of Object.entries(previous))if(old.had)member[key]=old.value;else delete member[key];pendingMemberAuth.delete(member.id);await persist().catch(()=>{});throw error;}
+   pendingMemberAuth.delete(member.id);committedBans=state.ipBans;
+   if(member.revoked)for(const map of [active,presence])for(const[k,v]of map)if(v.member===member.id)map.delete(k);
    for(const map of [active,presence])for(const value of map.values())if(value.member===member.id)Object.assign(value,{name:member.name,username:member.username,avatar:member.avatar||'purple'});
    if(member.muted)typing.delete(member.id);else if(typing.has(member.id))typing.get(member.id).name=member.name;
    bump();return {member:{...publicMember(member),revoked:!!member.revoked,muted:!!member.muted}};
@@ -138,13 +147,16 @@ export function createRoom(state,persist){
  function applyPrivacy(info,policy={}){if(policy.device===false)return {at:info.at,shared:false,...(info.ip?{ip:info.ip,ipSource:info.ipSource}:{})};if(policy.location===false)delete info.location;return info;}
  function privacy(a,b){
   if(!a.connection)return {ok:true};let visitor=presence.get(a.connection),lease=active.get(a.connection);if(!visitor){touchPresence(a.connection,{...(a.member?{member:a.id}:{invite:a.id}),name:a.name,username:a.username,avatar:a.avatar||'purple'});visitor=presence.get(a.connection);}
-  const policy={...(visitor?.privacyPolicy||lease?.privacyPolicy||{})};
+  const record=(a.member?state.members:state.invites).find(x=>x.id===a.id),policy={...(record?.privacyPolicy||{}),...(visitor?.privacyPolicy||lease?.privacyPolicy||{})};
+  if(typeof b.persist==='boolean')policy.persist=b.persist;
   if(typeof b.device==='boolean'){policy.device=b.device;if(!b.device||policy.location!==true)policy.location=false;}
   if(typeof b.location==='boolean')policy.location=b.location&&policy.device!==false;
+  if(record){record.privacyPolicy={...policy,updatedAt:Date.now()};if(record.diagnostics?.info)record.diagnostics.info=applyPrivacy({...record.diagnostics.info},policy);if(policy.persist===false&&record.diagnostics)record.diagnostics.info=applyPrivacy(record.diagnostics.info||{},{device:false});}
   for(const slot of [visitor,lease])if(slot){slot.privacyPolicy={...policy};if(slot.info)slot.info=applyPrivacy({...slot.info},policy);}return {ok:true};
  }
- function report(a,b,details){limit(a.id,'report',5000);if(a.connection){const visitor=presence.get(a.connection),lease=active.get(a.connection);if(!visitor&&!lease)return;const report={state:['playing','buffering','paused','error','youtube'].includes(b.state)?b.state:'unknown',buffer:finite(b.buffer,0,300),height:finite(b.height,0,1080),dropped:finite(b.dropped,0,1000000000),startupMs:finite(b.startupMs,0,60000),stalls:finite(b.stalls,0,1000000),help:!!b.help,at:Date.now()},policy=visitor?.privacyPolicy||lease?.privacyPolicy||{},info=details?applyPrivacy(clientDetails(details),policy):undefined;for(const slot of [visitor,lease])if(slot){slot.report=report;if(info)slot.info=info;}}}
+ function report(a,b,details){limit(a.id,'report',5000);if(a.connection){const visitor=presence.get(a.connection),lease=active.get(a.connection);if(!visitor&&!lease)return;const report={state:['playing','buffering','paused','error','youtube'].includes(b.state)?b.state:'unknown',buffer:finite(b.buffer,0,300),height:finite(b.height,0,1080),dropped:finite(b.dropped,0,1000000000),startupMs:finite(b.startupMs,0,60000),stalls:finite(b.stalls,0,1000000),help:!!b.help,at:Date.now()},record=(a.member?state.members:state.invites).find(x=>x.id===a.id),policy=record?.privacyPolicy||visitor?.privacyPolicy||lease?.privacyPolicy||{},info=details?applyPrivacy(clientDetails(details),policy):undefined;for(const slot of [visitor,lease])if(slot){slot.report=report;if(info)slot.info=info;}if(record){const old=record.diagnostics?.info||{},retained=info?applyPrivacy({...old,...info},policy.persist===true?policy:{device:false}):old;record.diagnostics={info:retained,report};record.lastSeen=Date.now();}}}
  function clear(b){if(b.id)messages=messages.filter(x=>x.id!==b.id);else messages=[];if(state.roomHistory?.pinned&&!messages.some(x=>x.id===state.roomHistory.pinned.id))state.roomHistory.pinned=null;bump();}
  function polling(a,b){if(b.action==='create'){if(!a.owner)throw Error('للمضيف فقط');const options=(b.options||[]).map(x=>String(x).trim().slice(0,70)).filter(Boolean).slice(0,4);if(options.length<2)throw Error('أدخل خيارين على الأقل');poll={id:shortKey(),question:String(b.question||'').trim().slice(0,160)||'ما رأيكم؟',options,closed:false};votes.clear();voteNames.clear();}else if(b.action==='close'){if(!a.owner)throw Error('للمضيف فقط');if(poll)poll.closed=true;}else{if(!poll||poll.closed)throw Error('التصويت مغلق');const choice=Number(b.choice);if(!Number.isInteger(choice)||!poll.options[choice])throw Error('خيار غير صالح');votes.set(a.id,choice);voteNames.set(a.id,a.name);}bump();}
  return {join,subscribe,profile,type,pin,owner,ownerSession,logout,access,snapshot,admin,invite,moderate,manageMember,settings,chat,react,report,clear,polling,bump,limit,active,presence,privacy};
 }
+

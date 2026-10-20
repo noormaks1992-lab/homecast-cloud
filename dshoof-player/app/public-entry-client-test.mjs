@@ -56,7 +56,7 @@ class Element{
  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
 }
 
-function fixture({state={},room={},fetch:fetchHandler,navigator:nav={},storage={}}={}){
+function fixture({state={},room={},fetch:fetchHandler,navigator:nav={},storage={'dshoof-diagnostics-consent':'v1'}}={}){
  const elements=new Map(),timers=new Map(),requests=[],streams=[],copied=[],shares=[],stored=new Map(Object.entries(storage));let timerId=0;
  const document={hidden:false,activeElement:null,body:new Element('body'),createElement(tag){const node=new Element(tag);node.ownerDocument=document;return node;},getElementById(id){if(!elements.has(id)){const node=this.createElement(id.includes('dialog')?'dialog':'div');node.id=id;elements.set(id,node);this.body.append(node);}return elements.get(id);},querySelector:selector=>document.body.querySelector(selector),querySelectorAll:selector=>document.body.querySelectorAll(selector),addEventListener(){}};
  document.body.ownerDocument=document;
@@ -286,12 +286,12 @@ test('SSE reconnects use a single bounded retry timer and stop on exit or lost a
  f.client.setPageLeaving(false);f.client.setState({authorized:false,authenticated:false});f.client.connectRoomEvents();assert.equal(f.streams.length,9);
 });
 
-test('status polling slows with SSE, weak connections, hidden pages, and repeated failures',async()=>{
+test('status polling ignores retired modes and slows for hidden pages and failures',async()=>{
  const f=fixture();f.client.connectRoomEvents();f.streams[0].onopen();
- assert.equal(f.client.statusPollDelay(),10000);f.element('network-mode').value='weak';assert.equal(f.client.statusPollDelay(),15000);
- f.element('network-mode').value='emergency';assert.equal(f.client.statusPollDelay(),30000);f.document.hidden=true;assert.equal(f.client.statusPollDelay(),30000);
+ assert.equal(f.client.statusPollDelay(),10000);f.element('network-mode').value='weak';assert.equal(f.client.statusPollDelay(),10000);
+ f.element('network-mode').value='emergency';assert.equal(f.client.statusPollDelay(),10000);f.document.hidden=true;assert.equal(f.client.statusPollDelay(),30000);
  f.client.setPollFailures(7);assert.equal(f.client.statusPollDelay(),60000);f.client.stopRoomEvents();f.client.setPollFailures(0);f.document.hidden=false;
- assert.equal(f.client.statusPollDelay(),15000);f.element('network-mode').value='weak';assert.equal(f.client.statusPollDelay(),12000);
+ assert.equal(f.client.statusPollDelay(),10000);f.element('network-mode').value='weak';assert.equal(f.client.statusPollDelay(),10000);
  const offline=fixture({fetch:async()=>{throw Error('offline');}});await offline.client.pollStatus();assert.equal(offline.client.getPollFailures(),1);assert.equal([...offline.timers.values()][0].ms,20000);
  offline.client.setPageLeaving(true);await offline.client.pollStatus();assert.equal(offline.requests.length,1,'leaving pages cannot start another status request');
 });
@@ -468,7 +468,7 @@ test('account editing suppresses duplicate submissions and preserves the draft a
 
 test('restoring a blocked account sends a restore action and refreshes its status without changing its identity',async()=>{
  const member={id:'blocked-member-id',username:'sara',name:'سارة',avatar:'blue',role:'moderator',revoked:true},f=memberFixture([member]);f.client.renderMembers();
- const card=f.element('members-list').children[0],restoreButton=card.querySelectorAll('button').find(button=>button.textContent==='إلغاء الحظر');assert.equal(restoreButton.hidden,false);assert.equal(card.querySelectorAll('button').find(button=>button.textContent==='حظر العضو').hidden,true);
+ const card=f.element('members-list').children[0],restoreButton=card.querySelectorAll('button').find(button=>button.textContent==='إلغاء حظر الحساب');assert.equal(restoreButton.hidden,false);assert.equal(card.querySelectorAll('button').find(button=>button.textContent==='حظر العضو').hidden,true);
  await f.client.restoreMember(member.id);
  const restore=f.requests.find(request=>request.path==='/api/members');assert(restore);assert.deepEqual(restore.body,{action:'restore',id:member.id});
  assert(f.requests.some(request=>request.path.startsWith('/api/status')));assert.equal(f.client.getState().members[0].revoked,false);assert.equal(f.client.getState().members[0].username,'sara');assert.equal(f.client.getState().members[0].role,'moderator');

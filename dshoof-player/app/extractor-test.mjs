@@ -17,3 +17,10 @@ test('new Majed v2 follows published boot API and keeps temporary token off medi
 test('new Majed v2 refuses DRM instead of pretending to convert it',async()=>{
  const open=async u=>({url:u,response:response(u.includes('embed.php')?`<body data-majed-boot='{"channel":"ch2","token":"fixture","base":"/v2"}'>`:JSON.stringify({servers:[{url:'https://cdn.example/a.m3u8',drm:{widevine:{licenseUrl:'https://license.example'}}}]}))});let called=false;await assert.rejects(resolveMajedV2('https://player.majed-koora.live/v2/embed.php?id=ch2','https://match.example/',{open,inspect:async()=>{called=true;}}),/DRM/);assert.equal(called,false);
 });
+test('extracts escaped configs, lazy frames, JSON-LD embeds and public base64 configuration',()=>{
+ const base='https://pages.example/watch';assert.equal(pageCandidates('<script>const hlsUrl="https:\\u002f\\u002fcdn.example\\u002flive.m3u8";</script>',base).direct[0],'https://cdn.example/live.m3u8');
+ assert.equal(pageCandidates('<iframe data-src="/embed"></iframe>',base).frames[0],'https://pages.example/embed');
+ assert.equal(pageCandidates('<script>{"embedUrl":"/embed"}</script>',base).frames[0],'https://pages.example/embed');
+ assert.equal(pageCandidates('<script>atob("'+Buffer.from('https://cdn.example/live.m3u8').toString('base64')+'")</script>',base).direct[0],'https://cdn.example/live.m3u8');
+});
+test('reads a bounded public player config without executing it or allowing local URLs',async()=>{let calls=0;const source=await extractPageSource('https://page.example/watch',{open:async u=>({url:u,response:response(++calls===1?'<script src="/player-config.js"></script>':'window.player={file:"https://cdn.example/live.m3u8"}; throw Error("must never execute")')}),inspect:async u=>({url:u,format:'hls'})});assert.equal(source.url,'https://cdn.example/live.m3u8');assert.equal(calls,2);});
