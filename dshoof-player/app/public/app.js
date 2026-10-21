@@ -216,7 +216,7 @@ function watch(){
    const last=ranges.length-1,start=ranges.start(last),end=ranges.end(last);
    if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return;
    const sync=p.liveSyncPosition;
-   const desired=Number.isFinite(sync)?sync:end-9;
+   const desired=Number.isFinite(sync)&&sync>=end-30&&sync<=end?sync:end-9;
    const target=Math.min(end-0.35,Math.max(start,desired));
    if(!Number.isFinite(target))return;
    if(target-v.currentTime>6){
@@ -356,7 +356,7 @@ $('go-live').onclick=()=>{
  if(!ranges.length){hls?.startLoad(-1);return;}
  const last=ranges.length-1,start=ranges.start(last),end=ranges.end(last);
  const liveSync=hls?.liveSyncPosition;
- const desired=Number.isFinite(liveSync)?liveSync:end-9;
+ const desired=Number.isFinite(liveSync)&&liveSync>=end-30&&liveSync<=end?liveSync:end-9;
  const target=Math.max(start,Math.min(end-.35,desired));
  if(!Number.isFinite(target))return;
  try{video.currentTime=target;}catch{}
