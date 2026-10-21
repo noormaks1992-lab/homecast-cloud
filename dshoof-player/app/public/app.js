@@ -169,7 +169,7 @@ async function sendChat(event){
 }
 
 function isFrameSource(selection=state.selection){return ['youtube','helper'].includes(selection?.kind);}
-function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=v.onended=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;$('helper-frame')?.removeAttribute('src');if($('helper-frame'))$('helper-frame').hidden=true;running=false;}
+function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=v.onloadedmetadata=v.onended=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;$('helper-frame')?.removeAttribute('src');if($('helper-frame'))$('helper-frame').hidden=true;running=false;}
 function channelPath(){return activeChannel==='1'?'':'/channels/2';}
 function playbackURL(){const q=$('quality-select').value;return channelPath()+(q==='highest'?'/live/dshoof.m3u8':'/quality/'+q+'.m3u8');}
 function playbackRevision(){return activeChannel+':'+String(state.selection?.updatedAt||'')+':'+state.selection?.kind;}
@@ -190,15 +190,15 @@ function watch(){
  // These sync distances are fractions of the *rolling* 48-fragment server window.
  // The old 120–140 second sync target exceeded the 24-fragment (~96s) playlist.
  const presets={
-  close:{maxBufferLength:20,liveSyncDurationCount:3,liveMaxLatencyDurationCount:10,maxLiveSyncPlaybackRate:1.06},
+  close:{maxBufferLength:16,liveSyncDurationCount:3,liveMaxLatencyDurationCount:8,maxLiveSyncPlaybackRate:1.1},
   balanced:{maxBufferLength:38,liveSyncDurationCount:5,liveMaxLatencyDurationCount:14,maxLiveSyncPlaybackRate:1.04},
   stable:{maxBufferLength:56,liveSyncDurationCount:7,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.02}
  };
- const settings=presets[mode]||presets.balanced,streamURL=playbackURL();
+ const settings=presets[mode]||presets.close,streamURL=playbackURL();
  const play=()=>v.play().catch(()=>notice('اضغط تشغيل للسماح للمتصفح بعرض الفيديو'));
  if(window.Hls?.isSupported()){
   const p=new Hls({
-   ...settings,maxMaxBufferLength:84,maxBufferSize:48*1024*1024,backBufferLength:30,
+   ...settings,startPosition:-1,initialLiveManifestSize:3,maxMaxBufferLength:64,maxBufferSize:40*1024*1024,backBufferLength:24,
    lowLatencyMode:false,startFragPrefetch:true,fragLoadingTimeOut:20000,
    manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,
    liveSyncOnStallIncrease:1
@@ -206,6 +206,26 @@ function watch(){
   hls=p;
   let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0;
   let repairs=0,isLive=false,lastManifestAdvance=Date.now(),lastSequence=null,lastReload=0;
+  // Some clients begin at 00:00 of the rolling playlist even when it represents LIVE.
+  // Once seekable media exists, jump ahead to the hls.js live sync point just once.
+  let initialLiveAligned=false;
+  const alignInitialLive=()=>{
+   if(initialLiveAligned||g!==generation||paused||!isLive)return;
+   const ranges=v.seekable;
+   if(!ranges?.length||v.readyState<1)return;
+   const last=ranges.length-1,start=ranges.start(last),end=ranges.end(last);
+   if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return;
+   const sync=p.liveSyncPosition;
+   const desired=Number.isFinite(sync)?sync:end-9;
+   const target=Math.min(end-0.35,Math.max(start,desired));
+   if(!Number.isFinite(target))return;
+   if(target-v.currentTime>6){
+    try{v.currentTime=target;}catch{return;}
+   }
+   initialLiveAligned=true;
+  };
+  v.onloadedmetadata=alignInitialLive;
+  v.oncanplay=alignInitialLive;
   p.on(Hls.Events.MANIFEST_PARSED,play);
   p.on(Hls.Events.LEVEL_LOADED,(_,info)=>{
    const details=info.details;
@@ -214,8 +234,9 @@ function watch(){
    if(Number.isFinite(sequence)&&sequence!==lastSequence){
     lastSequence=sequence;lastManifestAdvance=Date.now();
    }
+   alignInitialLive();
   });
-  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;});
+  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;alignInitialLive();});
   p.on(Hls.Events.ERROR,(_,info)=>{
    if(!info.fatal||g!==generation||paused||state.stopped)return;
    errors++;
@@ -330,7 +351,18 @@ async function fetchStatus(){
  finally{refreshing=false;}
 }
 $('start').onclick=watch;$('reload-video').onclick=watch;$('play-toggle').onclick=()=>{if(isFrameSource()){if(running){paused=true;stopLocal();render();}else watch();return;}if($('video').paused){paused=false;if(running){hls?.startLoad(-1);$('video').play().catch(e=>notice(e.message));}else watch();}else{paused=true;hls?.stopLoad();$('video').pause();}};
-$('go-live').onclick=()=>{const v=$('video');if(v.seekable.length)v.currentTime=Number.isFinite(hls?.liveSyncPosition)?hls.liveSyncPosition:Math.max(v.seekable.start(v.seekable.length-1),v.seekable.end(v.seekable.length-1)-8);};
+$('go-live').onclick=()=>{
+ const video=$('video'),ranges=video.seekable;
+ if(!ranges.length){hls?.startLoad(-1);return;}
+ const last=ranges.length-1,start=ranges.start(last),end=ranges.end(last);
+ const liveSync=hls?.liveSyncPosition;
+ const desired=Number.isFinite(liveSync)?liveSync:end-9;
+ const target=Math.max(start,Math.min(end-.35,desired));
+ if(!Number.isFinite(target))return;
+ try{video.currentTime=target;}catch{}
+ hls?.startLoad(-1);
+ paused=false;video.play().catch(()=>{});
+};
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if($('screen').requestFullscreen)await $('screen').requestFullscreen();else $('video').webkitEnterFullscreen?.();}catch(e){notice(e.message);}};
 $('pip').hidden=!document.pictureInPictureEnabled;$('pip').onclick=async()=>{try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else await $('video').requestPictureInPicture();}catch{notice('ابدأ الفيديو أولًا؛ الميزة تعتمد على المتصفح ونوع البث');}};
 const v=$('video');$('cast').hidden=!(v.remote||v.webkitShowPlaybackTargetPicker);$('cast').onclick=async()=>{try{if(v.webkitShowPlaybackTargetPicker)v.webkitShowPlaybackTargetPicker();else await v.remote.prompt();}catch{notice('لم يتوفر جهاز عرض متوافق');}};
@@ -338,7 +370,8 @@ async function wake(){try{if(wantWake&&document.visibilityState==='visible')wake
 $('wake').hidden=!navigator.wakeLock;$('wake').onclick=()=>{wantWake=!wantWake;wake();};document.addEventListener('visibilitychange',()=>{wake();if(!document.hidden)refresh();});
 $('focus').onclick=()=>{$('focus').setAttribute('aria-pressed',String(document.body.classList.toggle('cinema')));};$('chat-hide').onclick=()=>{$('chat-body').hidden=!$('chat-body').hidden;controlLabel('chat-hide',$('chat-body').hidden?'إظهار':'إخفاء',$('chat-body').hidden?'eye':'eye-off');$('chat-hide').setAttribute('aria-expanded',String(!$('chat-body').hidden));$('chat-hide').setAttribute('aria-label',$('chat-body').hidden?'إظهار الدردشة':'إخفاء الدردشة');};
 $('quality-select').onchange=()=>{if(state.ready){revision=playbackRevision();watch();}};
-$('playback-mode').onchange=()=>{try{localStorage.setItem('dshoof-mode',$('playback-mode').value);}catch{}if(running)watch();};try{$('playback-mode').value=localStorage.getItem('dshoof-mode')||'balanced';}catch{}
+$('playback-mode').onchange=()=>{try{localStorage.setItem('dshoof-live-mode-v2',$('playback-mode').value);}catch{}if(running)watch();};
+try{$('playback-mode').value=localStorage.getItem('dshoof-live-mode-v2')||'close';}catch{$('playback-mode').value='close';}
 $('sleep').onchange=()=>{clearTimeout(sleepTimer);const minutes=Number($('sleep').value);if(minutes)sleepTimer=setTimeout(()=>{paused=true;stopLocal();render();notice('انتهى مؤقتك؛ توقف العرض عندك فقط، والبث مستمر على الاستضافة');},minutes*60000);};
 
 function privacyUpdate(value){const update=privacyQueue.catch(()=>{}).then(()=>api('/api/privacy',value));privacyQueue=update.then(()=>{},()=>{});return update;}
