@@ -67,5 +67,5 @@ export function createQuality({open=openPublic,now=Date.now}={}){
   res.statusCode=response.statusCode;for(const name of ['content-type','content-length','content-range','accept-ranges'])if(response.headers[name])res.setHeader(name,response.headers[name]);
   res.on('close',()=>response.destroy());const output=Readable.from((async function*(){yield head;for await(const chunk of iterator)yield chunk;})());output.on('error',()=>res.destroy());response.on('error',()=>res.destroy());output.pipe(res);
  }
- return {configure,reset,masterPlaylist,serve,list:()=>qualityList(items),available:()=>items.length>0};
+ return {configure,reset,masterPlaylist,serve,list:()=>qualityList(items),available:()=>!!master&&(items.length>0||/^#EXTINF:/m.test(master.text))};
 }
