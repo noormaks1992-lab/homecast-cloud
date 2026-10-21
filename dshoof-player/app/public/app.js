@@ -169,7 +169,7 @@ async function sendChat(event){
 }
 
 function isFrameSource(selection=state.selection){return ['youtube','helper'].includes(selection?.kind);}
-function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;$('helper-frame')?.removeAttribute('src');if($('helper-frame'))$('helper-frame').hidden=true;running=false;}
+function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=v.onended=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;$('helper-frame')?.removeAttribute('src');if($('helper-frame'))$('helper-frame').hidden=true;running=false;}
 function channelPath(){return activeChannel==='1'?'':'/channels/2';}
 function playbackURL(){const q=$('quality-select').value;return channelPath()+(q==='highest'?'/live/dshoof.m3u8':'/quality/'+q+'.m3u8');}
 function playbackRevision(){return activeChannel+':'+String(state.selection?.updatedAt||'')+':'+state.selection?.kind;}
@@ -177,63 +177,121 @@ function watch(){
  channelChosen=true;
  if(state.selection?.kind==='helper'){stopLocal();paused=true;$('waiting').hidden=false;notice('تم إلغاء المشغّل المساعد. اختر كودًا أو رابط فيديو مباشرًا من إدارة القناة.');return;}
  if(!state.authorized||state.authenticated===false||!state.ready||state.stopped)return;
- stopLocal();paused=false;running=true;const v=$('video'),g=generation;$('waiting').hidden=true;
- if(state.selection?.kind==='youtube'){v.hidden=true;$('youtube').hidden=false;$('youtube').src='https://www.youtube-nocookie.com/embed/'+state.selection.videoId+'?autoplay=1&playsinline=1&origin='+encodeURIComponent(location.origin);return;}
- v.hidden=false;
- const network='fast',emergency=false,mode=$('playback-mode').value,streamURL=playbackURL(),config=mode==='weak'?{maxBufferLength:emergency?32:24,liveSyncDuration:90,liveMaxLatencyDuration:160,maxLiveSyncPlaybackRate:1}:mode==='stable'?{maxBufferLength:150,liveSyncDuration:140,liveMaxLatencyDuration:175}:mode==='close'?{maxBufferLength:20,liveSyncDurationCount:3}:{maxBufferLength:120,liveSyncDuration:120,liveMaxLatencyDuration:175};
- v.playbackRate=1;
- const play=()=>v.play().catch(()=>notice('اضغط تشغيل للسماح للمتصفح بعرض الفيديو'));
- const alignStartup=()=>{if(!v.buffered?.length||buffer()>0)return;for(let i=0;i<v.buffered.length;i++){const start=v.buffered.start(i),end=v.buffered.end(i);if(end-start>=3){try{v.currentTime=start+.01;}catch{}return;}}};
- if(window.Hls?.isSupported()){
-  const p=new Hls({...config,maxMaxBufferLength:mode==='weak'?(emergency?48:40):180,maxBufferSize:(mode==='weak'?(emergency?2:6):64)*1024*1024,backBufferLength:mode==='weak'?8:20,lowLatencyMode:false,startFragPrefetch:mode!=='weak',testBandwidth:mode!=='weak',fragLoadingTimeOut:mode==='weak'?30000:20000});hls=p;
-  let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0,repairs=0,isLive=false;
-  let awaitingBuffer=mode==='weak';
-  const resumeBuffered=()=>{if(!awaitingBuffer||g!==generation||paused)return;alignStartup();const required=3;if(buffer()>=required){awaitingBuffer=false;play();}else $('status').textContent='نجهّز مشاهدة أوفر: '+Math.floor(buffer())+' / '+required+' ثوانٍ';};
-  p.on(Hls.Events.MANIFEST_PARSED,()=>{if(mode!=='weak')play();else resumeBuffered();});
-  p.on(Hls.Events.LEVEL_LOADED,(_,d)=>{isLive=!!d.details?.live;});
-  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;resumeBuffered();});
-  p.on(Hls.Events.ERROR,(_,d)=>{
-   if(!d.fatal||g!==generation||paused||state.stopped)return;
-   clearTimeout(recoveryTimer);
-   if(mode==='weak'&&['manifestLoadError','manifestLoadTimeOut','manifestParsingError'].includes(d.details)){
-    $('status').textContent='ننتظر تجهيز النسخة المضغوطة على السيرفر…';
-    recoveryTimer=setTimeout(()=>{if(g===generation&&!paused&&!state.stopped)p.loadSource(streamURL);},Math.min(10000,2000*2**Math.min(errors++,3)));return;
-   }
-   if(errors++<3){
-    if(d.type===Hls.ErrorTypes.MEDIA_ERROR)p.recoverMediaError();
-    else recoveryTimer=setTimeout(()=>{if(g===generation&&!paused)p.startLoad();},Math.min(4000,errors*1000));
-   }else{errors=0;recoveryTimer=setTimeout(()=>{if(g===generation&&!paused&&state.ready)p.loadSource(streamURL);},3000);}
-  });
-  // Preserve buffered video while retrying. Never reload a paused or completed file.
-  const monitor=setInterval(()=>{
-   if(g!==generation){clearInterval(monitor);return;}
-   if(paused||v.paused||v.seeking||!isLive||state.stopped){lastProgress=Date.now();return;}
-   if(Math.abs(v.currentTime-lastTime)>.1){lastTime=v.currentTime;lastProgress=Date.now();repairs=0;return;}
-   const now=Date.now();if(now-lastProgress<6000||now-lastRepair<8000)return;
-   lastRepair=now;repairs++;$('status').textContent='نُحدّث مقاطع البث…';
-   if(mode==='weak'){p.startLoad();$('status').textContent='نجمع مقاطع إضافية للنت الضعيف…';return;}
-   const target=p.liveSyncPosition;
-   if(buffer()<1&&Number.isFinite(target)&&target>v.currentTime+1)v.currentTime=target;
-   if(repairs>=2&&state.ready){p.loadSource(streamURL);repairs=0;}else p.startLoad(-1);
-  },2000);playbackMonitor=monitor;
-  p.attachMedia(v);
-  if(mode==='weak'){
-   // Build a real delayed window before HLS chooses its starting fragment.
-   const controller=new AbortController();warmController=controller;const required=emergency?8:4;
-   const warm=async()=>{if(g!==generation||paused||state.stopped||controller.signal.aborted)return;try{const r=await fetch(streamURL,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)])});const text=r.ok?await r.text():'';if(g!==generation||paused||state.stopped||controller.signal.aborted)return;const seconds=[...text.matchAll(/#EXTINF:([0-9.]+)/g)].reduce((n,m)=>n+Number(m[1]),0);if(seconds>=required){p.loadSource(streamURL);return;}$('status').textContent='تجهيز البث الموفر: '+Math.floor(seconds)+' / '+required+' ثوانٍ';}catch{if(g!==generation||paused||state.stopped||controller.signal.aborted)return;}$('waiting-text').textContent='نجهّز نسخة أخف لاتصالك';recoveryTimer=setTimeout(warm,2000);};warm();
-  }else p.loadSource(streamURL);
- }else if(v.canPlayType('application/vnd.apple.mpegurl')){
-  // Native HLS (Safari) needs the same cold-start preparation and bounded recovery.
-  const controller=new AbortController();warmController=controller;let failures=0,awaiting=mode==='weak';
-  const current=()=>g===generation&&!paused&&!state.stopped&&!controller.signal.aborted;
-  const resume=()=>{if(current()&&awaiting)alignStartup();if(current()&&awaiting&&buffer()>=3){awaiting=false;play();}};
-  const load=()=>{if(!current())return;v.preload='auto';v.src=streamURL;v.load();if(mode!=='weak')play();};
-  const prepare=async()=>{if(!current())return;try{const r=await fetch(streamURL,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)])});const manifest=r.ok?await r.text():'';if(!current())return;const seconds=[...manifest.matchAll(/#EXTINF:([0-9.]+)/g)].reduce((n,m)=>n+Number(m[1]),0);if(seconds>=(emergency?8:4)){load();return;}$('status').textContent='نجهّز النسخة الخفيفة للمشاهدة…';}catch{if(!current())return;}recoveryTimer=setTimeout(prepare,2000);};
-  v.onprogress=resume;v.oncanplay=resume;v.onerror=()=>{if(!current())return;awaiting=mode==='weak';$('status').textContent=mode==='weak'?'نحاول استعادة البث الخفيف…':'نحاول استعادة البث…';clearTimeout(recoveryTimer);recoveryTimer=setTimeout(mode==='weak'?prepare:load,Math.min(15000,2000*2**Math.min(failures++,3)));};
-  playbackMonitor=setInterval(()=>{if(!current())return;resume();},1000);
-  if(mode==='weak')prepare();else load();
+ stopLocal();paused=false;running=true;
+ const v=$('video'),g=generation;
+ $('waiting').hidden=true;
+ if(state.selection?.kind==='youtube'){
+  v.hidden=true;$('youtube').hidden=false;
+  $('youtube').src='https://www.youtube-nocookie.com/embed/'+state.selection.videoId+'?autoplay=1&playsinline=1&origin='+encodeURIComponent(location.origin);
+  return;
  }
- else{running=false;paused=true;$('waiting').hidden=false;notice('هذا المتصفح لا يدعم تشغيل HLS؛ استخدم رابط M3U في مشغل متوافق');}
+ v.hidden=false;v.playbackRate=1;
+ const mode=$('playback-mode').value;
+ // These sync distances are fractions of the *rolling* 48-fragment server window.
+ // The old 120–140 second sync target exceeded the 24-fragment (~96s) playlist.
+ const presets={
+  close:{maxBufferLength:20,liveSyncDurationCount:3,liveMaxLatencyDurationCount:10,maxLiveSyncPlaybackRate:1.06},
+  balanced:{maxBufferLength:38,liveSyncDurationCount:5,liveMaxLatencyDurationCount:14,maxLiveSyncPlaybackRate:1.04},
+  stable:{maxBufferLength:56,liveSyncDurationCount:7,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.02}
+ };
+ const settings=presets[mode]||presets.balanced,streamURL=playbackURL();
+ const play=()=>v.play().catch(()=>notice('اضغط تشغيل للسماح للمتصفح بعرض الفيديو'));
+ if(window.Hls?.isSupported()){
+  const p=new Hls({
+   ...settings,maxMaxBufferLength:84,maxBufferSize:48*1024*1024,backBufferLength:30,
+   lowLatencyMode:false,startFragPrefetch:true,fragLoadingTimeOut:20000,
+   manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,
+   liveSyncOnStallIncrease:1
+  });
+  hls=p;
+  let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0;
+  let repairs=0,isLive=false,lastManifestAdvance=Date.now(),lastSequence=null,lastReload=0;
+  p.on(Hls.Events.MANIFEST_PARSED,play);
+  p.on(Hls.Events.LEVEL_LOADED,(_,info)=>{
+   const details=info.details;
+   isLive=!!details?.live;
+   const sequence=Number(details?.endSN);
+   if(Number.isFinite(sequence)&&sequence!==lastSequence){
+    lastSequence=sequence;lastManifestAdvance=Date.now();
+   }
+  });
+  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;});
+  p.on(Hls.Events.ERROR,(_,info)=>{
+   if(!info.fatal||g!==generation||paused||state.stopped)return;
+   errors++;
+   clearTimeout(recoveryTimer);
+   if(info.type===Hls.ErrorTypes.MEDIA_ERROR&&errors<=3){
+    p.recoverMediaError();return;
+   }
+   const wait=Math.min(9000,1200*2**Math.min(errors,3));
+   recoveryTimer=setTimeout(()=>{
+    if(g!==generation||paused||state.stopped)return;
+    // Reloading an unchanged/expired manifest only restarts playback from 00:00.
+    const now=Date.now();
+    if(errors>=5&&buffer()<1&&now-lastManifestAdvance<30000&&now-lastReload>45000){
+     lastReload=now;p.loadSource(streamURL);
+    }else{
+     p.startLoad(-1);
+    }
+   },wait);
+  });
+  playbackMonitor=setInterval(()=>{
+   if(g!==generation){clearInterval(playbackMonitor);return;}
+   if(paused||v.paused||v.seeking||state.stopped){lastProgress=Date.now();return;}
+   const now=Date.now();
+   if(Math.abs(v.currentTime-lastTime)>.15){
+    lastTime=v.currentTime;lastProgress=now;repairs=0;return;
+   }
+   if(!isLive||now-lastProgress<7500||now-lastRepair<6500)return;
+   lastRepair=now;repairs++;
+   if(now-lastManifestAdvance>30000){
+    $('status').textContent='مصدر البث لم يرسل مقاطع جديدة؛ ننتظر عودته';
+    p.startLoad(-1);
+    return;
+   }
+   $('status').textContent='نحاول مواصلة المقاطع دون إعادة البث من البداية…';
+   if(buffer()<1){
+    const target=p.liveSyncPosition;
+    if(Number.isFinite(target)&&target>v.currentTime+12){
+     try{v.currentTime=target;}catch{}
+    }
+    p.startLoad(-1);
+   }else if(v.readyState>=2){
+    play();
+   }
+   if(repairs>=3&&buffer()<1&&now-lastProgress>21000&&now-lastReload>45000){
+    lastReload=now;repairs=0;p.loadSource(streamURL);
+   }
+  },2000);
+  v.onended=()=>{
+   if(g!==generation||paused||state.stopped||!isLive)return;
+   p.startLoad(-1);
+   const target=p.liveSyncPosition;
+   if(Number.isFinite(target)&&target>v.currentTime+2){
+    try{v.currentTime=target;}catch{}
+   }
+   play();
+  };
+  p.attachMedia(v);p.loadSource(streamURL);
+ }else if(v.canPlayType('application/vnd.apple.mpegurl')){
+  // Safari native HLS playback; no synthetic 120-second start delay.
+  let failures=0;
+  const current=()=>g===generation&&!paused&&!state.stopped;
+  const load=()=>{
+   if(!current())return;
+   v.preload='auto';v.src=streamURL;v.load();play();
+  };
+  v.onerror=()=>{
+   if(!current())return;
+   $('status').textContent='نحاول إعادة الاتصال بالمصدر…';
+   clearTimeout(recoveryTimer);
+   recoveryTimer=setTimeout(load,Math.min(15000,2000*2**Math.min(failures++,3)));
+  };
+  load();
+ }else{
+  running=false;paused=true;$('waiting').hidden=false;
+  notice('هذا المتصفح لا يدعم تشغيل HLS؛ استخدم رابط M3U في مشغل متوافق');
+ }
 }
 function buffer(){const v=$('video');for(let i=0;i<v.buffered.length;i++)if(v.currentTime>=v.buffered.start(i)&&v.currentTime<=v.buffered.end(i))return v.buffered.end(i)-v.currentTime;return 0;}
 function renderChat(){
