@@ -38,7 +38,15 @@ export function createQuality({open=openPublic,now=Date.now}={}){
   })();pending.set(key,promise);
   try{return await promise;}finally{pending.delete(key);}
  }
- async function configure(value){reset(value);if(value?.format!=='hls')return;const generation=epoch,m=await manifest(value.url);if(generation!==epoch)return;master=m;items=variants(m.text,m.url).filter(v=>v.height>0&&v.height<=1080);}
+ async function configure(value){
+  // Restarting the relay is not a source change. Keep viewer segment IDs valid,
+  // including while the provider renews authorization for the same source URL.
+  const same=source&&value&&source.url===value.url&&source.format===value.format;
+  if(!same)reset(value);
+  else {const changed=JSON.stringify(source.headers||{})!==JSON.stringify(value.headers||{});source=value;if(changed)cache.clear();}
+  if(value?.format!=='hls'||same&&master)return;
+  const generation=epoch,m=await manifest(value.url);if(generation!==epoch)return;master=m;items=variants(m.text,m.url).filter(v=>v.height>0&&v.height<=1080);
+ }
  function map(url,base,key,playlist=false,height){
   const id=createHash('sha256').update(epoch+':'+url+':'+String(height??'auto')+':'+playlist).digest('hex').slice(0,24);
   if(!registry.has(id)){if(registry.size>=20000)registry.delete(registry.keys().next().value);registry.set(id,{url,playlist,height});}
@@ -50,7 +58,7 @@ export function createQuality({open=openPublic,now=Date.now}={}){
   return rewriteInput(filtered,url,u=>map(u,base,key,lists.has(u),height));
  }
  function masterPlaylist(height,base,key){if(!master)throw Error('جاري فحص دقات المصدر');return rewrite(master.text,master.url,base,key,height);}
- async function playlist(height,base,key){const generation=epoch;if(!source||!master)throw Error('جاري فحص دقات المصدر');const m=await manifest(source.url);if(generation!==epoch)throw Error('تغير مصدر البث');return rewrite(m.text,m.url,base,key,height);}
+ async function playlist(height,base,key){const generation=epoch;if(!source||!master)throw Error('جاري فحص دقات المصدر');const m=await manifest(source.url);if(generation!==epoch)throw Error('تغير مصدر البث');master=m;items=variants(m.text,m.url).filter(v=>v.height>0&&v.height<=1080);return rewrite(m.text,m.url,base,key,height);}
  async function serve(req,res,id,base,key){
   const entry=registry.get(id);if(!entry)throw Error('تغير المصدر؛ أعد فتح البث');const abort=new AbortController();res.once('close',()=>abort.abort());
   const {url,playlist,height}=entry,generation=epoch;

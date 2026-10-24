@@ -11,7 +11,8 @@
     "test": "node --test --test-concurrency=2 test.mjs arena-test.mjs code-test.mjs ffmpeg-runtime-test.mjs github-start-test.mjs majed-choice-integration-test.mjs majed-choice-test.mjs page-source-test.mjs persistence-http-test.mjs player-flow-test.mjs pro-test.mjs quality-cache-test.mjs quality-test.mjs recovery-stability-test.mjs relay-page-test.mjs room-test.mjs security-http-test.mjs security-test.mjs segment-cache-test.mjs source-test.mjs supervisor-test.mjs chat-events-test.mjs public-member-test.mjs public-entry-client-test.mjs public-integration-test.mjs viewer-info-test.mjs watch-analytics-test.mjs member-management-test.mjs public-navigation-client-test.mjs dual-channel-test.mjs extractor-test.mjs member-retention-test.mjs live-player-test.mjs helper-source-test.mjs",
     "test:stream": "node --test --test-concurrency=1 code-test.mjs source-test.mjs quality-test.mjs recovery-stability-test.mjs majed-choice-integration-test.mjs dual-channel-test.mjs extractor-test.mjs helper-source-test.mjs",
     "start:local": "node --env-file-if-exists=.env supervisor.mjs",
-    "test:soak": "node stream-endurance.mjs"
+    "test:soak": "node stream-endurance.mjs",
+    "test:repair": "node --test --test-concurrency=2 source-player-test.mjs source-refresh-test.mjs quality-cache-test.mjs quality-test.mjs dual-channel-test.mjs broadcast-audio-test.mjs relay-continuity-test.mjs recovery-stability-test.mjs security-http-test.mjs security-test.mjs ffmpeg-runtime-test.mjs"
   },
   "dependencies": {
     "ffmpeg-static": "5.3.0",

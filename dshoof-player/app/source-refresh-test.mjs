@@ -19,3 +19,17 @@ test('an old playlist response cannot replace a newly selected channel source',a
  const q=createQuality({now:()=>now,open:async u=>{if(now)await new Promise(r=>release=r);return {url:u,response:Readable.from([Buffer.from(media(1))])};}});
  await q.configure({url,format:'hls'});now=2000;const old=q.playlist(undefined,'https://dshoof.test','viewer');await Promise.resolve();q.reset(null);release();await assert.rejects(old,/تغير مصدر/);
 });
+
+test('relay reconnection and renewed credentials keep existing viewer URLs readable',async()=>{
+ let now=0,calls=0,seen=[];
+ const q=createQuality({now:()=>now,open:async(u,h)=>{calls++;seen.push(h?.Authorization);return {url:u,response:Object.assign(Readable.from([Buffer.from(u===url?media(1):'#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nchild.ts\n')]),{headers:{},statusCode:200})};}});
+ await q.configure({url,format:'hls',headers:{Authorization:'old'}});
+ const before=await q.playlist(undefined,'https://dshoof.test','viewer');
+ const segment=before.split('\n').find(x=>x.startsWith('https:')),id=new URL(segment).pathname.split('/').at(-1);
+ await q.configure({url,format:'hls',headers:{Authorization:'new'}});
+ const response={once(){},setHeader(){},end(text){this.text=text;}};
+ await q.serve({headers:{}},response,id,'https://dshoof.test','viewer');
+ assert.match(response.text,/#EXTM3U/);assert.equal(seen.at(-1),'new');assert.equal(calls,2);
+ assert.equal((await q.playlist(undefined,'https://dshoof.test','viewer')).split('\n').find(x=>x.startsWith('https:')),segment);
+ q.reset(null);await assert.rejects(q.serve({headers:{}},response,id,'https://dshoof.test','viewer'),/تغير المصدر/);
+});

@@ -1,0 +1,34 @@
+{
+  "base": "df343fad205a25a0b18eeb76d8a1e0d9901e0090",
+  "productionUploaded": false,
+  "files": [
+    {
+      "path": "server.mjs",
+      "sha256": "34d4b2a92619263bc03a5e71fe9e53164465ff2b40fea7ea71f190b1e80be18c"
+    },
+    {
+      "path": "quality.mjs",
+      "sha256": "18d824e55d843e996e2d51da3c535805135fbf59df2739854a163fe3c5a80830"
+    },
+    {
+      "path": "sources.mjs",
+      "sha256": "68efb878b2e37cc2f2dd7c70c58b1db875220f97a53a5cc5f4e8a35adaa624d1"
+    },
+    {
+      "path": "broadcast-audio.mjs",
+      "sha256": "2b79e80ece355c422d893f343e952b5949c10fd7e71bd2951d7cae48a65d8a40"
+    },
+    {
+      "path": "relay-continuity.mjs",
+      "sha256": "d2e60bb6177e32f8c80303747830236fb03468239443c9d163333760d6e525fb"
+    },
+    {
+      "path": "public/app.js",
+      "sha256": "324475f500a49cb547bad2f90611d49aec337b170023f55ab6f936858400336f"
+    },
+    {
+      "path": "public/index.html",
+      "sha256": "9e5e14735d34749ff85f4a0ec760c3d8687e80b05b0e7b98e2bf205525cf09b8"
+    }
+  ]
+}

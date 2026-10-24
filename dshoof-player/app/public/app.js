@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);let state={},room={},hls=null,revision='
 let channelChosen=false,sourceFormChannel=null;let activeChannel='1';try{activeChannel=localStorage.getItem('dshoof-channel')==='2'?'2':'1';}catch{}
 const memberNodes=new Map(),memberActionPending=new Set();let memberPage=0,memberEditId=null,memberDetailsId=null,memberEditPending=false,memberDetailsSignature='';let hadOwnerControls=false;
 let noticeTimer;const notice=t=>{clearTimeout(noticeTimer);$('notice').textContent=t;$('notice').hidden=!t;if(t)noticeTimer=setTimeout(()=>{$('notice').hidden=true;},12000);};
-async function api(path,body){if(path.startsWith('/api/status')||path==='/api/pro')path+=(path.includes('?')?'&':'?')+'channel='+activeChannel;if(body!==undefined&&['/api/select','/api/stop','/api/resume','/api/channel-name','/api/report'].includes(path))body={...body,channel:activeChannel};const response=await fetch(path,{...(body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(35000),cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('تعذر الاتصال بالخادم، حاول مجددًا');}if(!response.ok)throw Error(data.error||'تعذر إكمال الطلب');return data;}
+async function api(path,body){if(path.startsWith('/api/status')||path==='/api/pro')path+=(path.includes('?')?'&':'?')+'channel='+activeChannel;if(body!==undefined&&['/api/select','/api/stop','/api/resume','/api/channel-name','/api/report','/api/audio'].includes(path))body={...body,channel:activeChannel};const response=await fetch(path,{...(body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(35000),cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('تعذر الاتصال بالخادم، حاول مجددًا');}if(!response.ok)throw Error(data.error||'تعذر إكمال الطلب');return data;}
 async function action(path,body){try{const r=await api(path,body);if(r.room)applyRoom(r.room);if(!r.room||!['/api/chat','/api/react','/api/poll','/api/chat/pin','/api/chat/clear','/api/settings'].includes(path))await refresh({afterCurrent:true});return r;}catch(e){notice(e.message);return null;}}
 function button(text,fn,cls){const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;if(cls)b.className=cls;return b;}
 function text(tag,value,cls){const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;}
@@ -171,8 +171,8 @@ async function sendChat(event){
 function isFrameSource(selection=state.selection){return ['youtube','helper'].includes(selection?.kind);}
 function stopLocal(){generation++;clearTimeout(recoveryTimer);clearInterval(playbackMonitor);warmController?.abort();warmController=null;window.dispatchEvent(new Event('dshoof:playback-reset'));hls?.stopLoad();hls?.destroy();hls=null;const v=$('video');v.onerror=v.onprogress=v.oncanplay=v.onloadedmetadata=v.onended=null;v.pause();v.removeAttribute('src');v.load();$('youtube').removeAttribute('src');$('youtube').hidden=true;$('helper-frame')?.removeAttribute('src');if($('helper-frame'))$('helper-frame').hidden=true;running=false;}
 function channelPath(){return activeChannel==='1'?'':'/channels/2';}
-function playbackURL(){const q=$('quality-select').value;return channelPath()+($('stream-route').value==='relay'?'/live/dshoof.m3u8':'/quality/'+q+'.m3u8');}
-function playbackRevision(){return activeChannel+':'+String(state.selection?.updatedAt||'')+':'+state.selection?.kind;}
+function playbackURL(){const q=$('quality-select').value||'auto';return channelPath()+(state.requiresRelay||state.adaptive===false?'/live/dshoof.m3u8':'/quality/'+q+'.m3u8');}
+function playbackRevision(){return activeChannel+':'+String(state.selection?.updatedAt||'')+':'+state.selection?.kind+':'+(state.audioRevision||0);}
 function watch(){
  channelChosen=true;
  if(state.selection?.kind==='helper'){stopLocal();paused=true;$('waiting').hidden=false;notice('تم إلغاء المشغّل المساعد. اختر كودًا أو رابط فيديو مباشرًا من إدارة القناة.');return;}
@@ -194,14 +194,15 @@ function watch(){
   balanced:{maxBufferLength:38,liveSyncDurationCount:5,liveMaxLatencyDurationCount:14,maxLiveSyncPlaybackRate:1.04},
   stable:{maxBufferLength:56,liveSyncDurationCount:7,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.02}
  };
- const settings=presets[mode]||presets.close,streamURL=playbackURL(),directSource=streamURL.includes('/quality/');
+ const settings=presets[mode]||presets.close,streamURL=playbackURL();
+ let directSource=streamURL.includes('/quality/');
  let currentURL=streamURL,switchedToRelay=false;
  const play=()=>v.play().catch(()=>notice('اضغط تشغيل للسماح للمتصفح بعرض الفيديو'));
  if(window.Hls?.isSupported()){
   // Measured from Majed's active HLS adapter (2026-10-24), same HLS.js 1.7.3.
   // Keep its defaults for ABR, forward buffer and live synchronization.
   const sourceConfig={autoStartLoad:true,enableWorker:true,lowLatencyMode:false,
-   liveSyncDurationCount:mode==='stable'?5:mode==='balanced'?3:2,backBufferLength:30,fragLoadingTimeOut:20000,fragLoadingMaxRetry:6,
+   liveSyncDurationCount:mode==='stable'?5:3,backBufferLength:30,fragLoadingTimeOut:20000,fragLoadingMaxRetry:6,
    fragLoadingRetryDelay:750,manifestLoadingTimeOut:20000,manifestLoadingMaxRetry:6,
    levelLoadingTimeOut:20000,levelLoadingMaxRetry:6};
   const relayConfig={...settings,startPosition:-1,initialLiveManifestSize:3,maxMaxBufferLength:64,
@@ -210,7 +211,7 @@ function watch(){
   const p=new Hls(directSource?sourceConfig:relayConfig);
   p.dshoofSourceParity=directSource;
   hls=p;
-  let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0;
+  let errors=0,lastProgress=Date.now(),lastTime=-1,lastRepair=0,networkFatalAt=0;
   let repairs=0,isLive=false,lastManifestAdvance=Date.now(),lastSequence=null,lastReload=0;
   // Some clients begin at 00:00 of the rolling playlist even when it represents LIVE.
   // Once seekable media exists, jump ahead to the hls.js live sync point just once.
@@ -232,6 +233,14 @@ function watch(){
   };
   v.onloadedmetadata=alignInitialLive;
   v.oncanplay=alignInitialLive;
+  const useRelay=()=>{
+   if(!directSource||switchedToRelay||state.requiresRelay||state.relayReady!==true||!streamURL.includes('/quality/auto.m3u8'))return false;
+   switchedToRelay=true;directSource=false;p.dshoofSourceParity=false;
+   currentURL=channelPath()+'/live/dshoof.m3u8';errors=0;networkFatalAt=0;
+   lastManifestAdvance=Date.now();lastSequence=null;initialLiveAligned=false;
+   $('status').textContent='نحوّلك تلقائيًا إلى مسار بث متاح';
+   p.loadSource(currentURL);return true;
+  };
   let startupPlayed=false;
   p.on(Hls.Events.MANIFEST_PARSED,()=>{startupPlayed=true;play();});
   p.on(Hls.Events.LEVEL_LOADED,(_,info)=>{
@@ -243,24 +252,18 @@ function watch(){
    }
    alignInitialLive();
   });
-  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;alignInitialLive();if(directSource&&!startupPlayed&&buffer()>=1.5){startupPlayed=true;play();}});
+  p.on(Hls.Events.FRAG_BUFFERED,()=>{errors=0;networkFatalAt=0;alignInitialLive();if(directSource&&!startupPlayed&&buffer()>=1.5){startupPlayed=true;play();}});
   p.on(Hls.Events.ERROR,(_,info)=>{
    if(!info.fatal||g!==generation||paused||state.stopped)return;
    errors++;
    clearTimeout(recoveryTimer);
    // Direct HLS is preferred. The original Dshoof/FFmpeg HLS remains a
    // bounded fallback when its separate server-side relay is actually ready.
-   if(!switchedToRelay&&errors>=3&&info.type===Hls.ErrorTypes.NETWORK_ERROR&&state.relayReady===true&&streamURL.includes('/quality/auto.m3u8')){
-    switchedToRelay=true;currentURL=channelPath()+'/live/dshoof.m3u8';$('stream-route').value='relay';render();
-    errors=0;lastManifestAdvance=Date.now();lastSequence=null;initialLiveAligned=false;
-    $('status').textContent='المصدر المباشر يتعثر؛ نستخدم المسار الاحتياطي مؤقتاً';
-    p.loadSource(currentURL);
-    return;
-   }
+   if(info.type===Hls.ErrorTypes.NETWORK_ERROR){networkFatalAt||=Date.now();if(errors>=2&&useRelay())return;}
    if(info.type===Hls.ErrorTypes.MEDIA_ERROR&&errors<=3){
     p.recoverMediaError();return;
    }
-   const wait=directSource&&errors===1?0:Math.min(9000,(directSource?750:1200)*2**Math.min(Math.max(0,errors-2),3));
+   const wait=errors===1?0:Math.min(5000,750*2**Math.min(Math.max(0,errors-2),3));
    recoveryTimer=setTimeout(()=>{
     if(g!==generation||paused||state.stopped)return;
     // Reloading an unchanged/expired manifest only restarts playback from 00:00.
@@ -279,24 +282,26 @@ function watch(){
    if(Math.abs(v.currentTime-lastTime)>.15){
     lastTime=v.currentTime;lastProgress=now;repairs=0;return;
    }
-   if(directSource||!isLive||now-lastProgress<7500||now-lastRepair<6500)return;
+   if(now-lastProgress<3000||now-lastRepair<3000)return;
+   if(buffer()<0.5&&useRelay())return;
+   if(!isLive)return;
    lastRepair=now;repairs++;
    if(now-lastManifestAdvance>30000){
     $('status').textContent='مصدر البث لم يرسل مقاطع جديدة؛ ننتظر عودته';
-    p.startLoad(-1);
+    if(useRelay())return;
     return;
    }
    $('status').textContent='نحاول مواصلة المقاطع دون إعادة البث من البداية…';
    if(buffer()<1){
     const target=p.liveSyncPosition;
-    if(Number.isFinite(target)&&target>v.currentTime+12){
+    if(Number.isFinite(target)&&target>v.currentTime+2){
      try{v.currentTime=target;}catch{}
     }
-    p.startLoad(-1);
+    if(networkFatalAt)p.startLoad(-1);
    }else if(v.readyState>=2){
     play();
    }
-   if(repairs>=3&&buffer()<1&&now-lastProgress>21000&&now-lastReload>45000){
+   if(repairs>=3&&buffer()<1&&now-lastProgress>10000&&now-lastReload>15000){
     lastReload=now;repairs=0;p.loadSource(currentURL);
    }
   },2000);
@@ -316,13 +321,14 @@ function watch(){
   const current=()=>g===generation&&!paused&&!state.stopped;
   const load=()=>{
    if(!current())return;
-   v.preload='auto';v.src=streamURL;v.load();play();
+   v.preload='auto';v.src=currentURL;v.load();play();
   };
   v.onerror=()=>{
    if(!current())return;
    $('status').textContent='نحاول إعادة الاتصال بالمصدر…';
    clearTimeout(recoveryTimer);
-   recoveryTimer=setTimeout(load,Math.min(15000,2000*2**Math.min(failures++,3)));
+   if(failures>=1&&directSource&&state.relayReady===true&&streamURL.includes('/quality/auto.m3u8')){currentURL=channelPath()+'/live/dshoof.m3u8';directSource=false;}
+   recoveryTimer=setTimeout(load,failures++===0?0:Math.min(5000,750*2**Math.min(failures-2,3)));
   };
   load();
  }else{
@@ -352,7 +358,7 @@ function renderChat(){
 function renderPoll(){const p=room.poll;$('poll-card').hidden=!p;if(!p)return;const total=p.counts.reduce((a,b)=>a+b,0);$('poll-question').textContent=p.question;$('poll-state').textContent=(p.closed?'انتهى التصويت':'صوت واحد لكل مشاهد • يمكنك تغيير اختيارك')+' · '+total+' أصوات · الأسماء ظاهرة للجميع';$('poll-options').replaceChildren(...p.options.map((o,i)=>{const card=text('div','','poll-option');const percent=total?Math.round(p.counts[i]/total*100):0;const b=button(o,()=>action('/api/poll',{action:'vote',choice:i}),p.myVote===i?'voted':'');b.setAttribute('aria-pressed',String(p.myVote===i));b.append(text('span',p.counts[i]+' أصوات · '+percent+'%','poll-tally'));b.disabled=p.closed;const meter=document.createElement('progress');meter.max=100;meter.value=percent;meter.setAttribute('aria-label',o+' '+percent+'%');const names=text('div','','participant-names');for(const name of p.voters?.[i]||[])names.append(text('span',name,'name-chip'));if(!names.childNodes.length)names.append(text('small','كن أول المصوّتين'));card.append(b,meter,names);return card;}));}
 function renderReactionNames(){const labels={like:'أعجبهم البث',love:'أحبّوا البث',heart:'أرسلوا قلبًا'};$('reaction-names').replaceChildren(...Object.entries(labels).map(([type,label])=>{const wrap=text('div','','reaction-group');const names=room.reactionNames?.[type]||[];wrap.append(text('strong',label));for(const name of names)wrap.append(text('span',name,'name-chip'));if(!names.length)wrap.append(text('small','لا توجد تفاعلات مسمّاة بعد'));return wrap;}));document.querySelectorAll('[data-reaction]').forEach(b=>{const chosen=(room.myReactions||[]).includes(b.dataset.reaction);b.disabled=chosen||!state.authorized;b.setAttribute('aria-pressed',String(chosen));b.title=chosen?'تم تسجيل تفاعلك مرة واحدة':'تفاعل مرة واحدة باسمك';});}
 
-function render(){renderChannels();showDiagnosticConsent();const s=state;renderPublicEntry();document.body.classList.toggle('guest',!s.authorized);renderConnection();const qs=$('quality-select'),previous=qs.value,options=[{id:'auto',label:s.adaptive?'المصدر الأصلي · مباشر (مفضّل)':'تلقائي · مسار متوافق'},...(s.qualities||[])];const signature=JSON.stringify(options);if(qs.dataset.options!==signature){qs.replaceChildren(...options.map(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.label;return o;}));qs.value=options.some(x=>x.id===previous)?previous:'auto';qs.dataset.options=signature;}qs.disabled=isFrameSource(s.selection)||$('stream-route').value==='relay';$('stream-route').disabled=isFrameSource(s.selection);$('go-live').disabled=isFrameSource(s.selection);window.dshoofStudio?.render();$('server-stream-controls').hidden=!s.canControl;$('admin').hidden=!s.canControl||!!window.dshoofStudio&&document.body.dataset.page!=='admin';$('admin-link').hidden=!s.canControl;$('guest-message').hidden=s.authorized;$('guest-reason').textContent=s.status||'اختر اسمك للانضمام إلى اللمّة';$('title').textContent=s.selection?.title||'دشوف مباشر';if(!running||v.readyState>=3&&!v.paused)$('status').textContent=s.status||'';$('live-badge').textContent=s.stopped?'متوقف':s.ready?'جاهز':'بانتظار البث';$('source-badge').textContent=s.selection?.kind==='helper'?'مصدر ملغى':s.selection?.kind==='youtube'?'YouTube':'HLS';$('waiting').hidden=running;const idle=s.stopped||!s.selection||s.ended;$('waiting-title').textContent=!channelChosen?'اختر قناتك أعلاه':idle?'لا توجد مباراة حالياً':s.ready?'البث جاهز':'جاري تجهيز البث';$('waiting-text').textContent=idle?'اللمّة ترجع مع صافرة البداية. تابعنا لمعرفة موعد البث القادم.':s.status||'نجهّز لك المشاهدة…';renderRoom();if(!s.canControl)return;$('playlist').value=s.playlist;$('quality-note').textContent=s.qualityNote||'';$('download-qualities').href=s.allQualitiesPlaylist;$('download-qualities').hidden=isFrameSource(s.selection);$('quality-links').hidden=isFrameSource(s.selection);$('download-playlist').hidden=s.selection?.kind==='helper';$('copy-playlist').hidden=s.selection?.kind==='helper';$('playlist').closest('label')?.classList.toggle('helper-unavailable',s.selection?.kind==='helper');$('quality-links').replaceChildren(...(s.qualityPlaylists||[]).map(q=>{const row=document.createElement('div');const a=document.createElement('a');a.className='button';a.href=q.url;a.textContent=q.label+' · تنزيل M3U';a.download='dshoof-'+q.id+'.m3u';row.append(a,button('نسخ رابط '+q.label,()=>copy(q.url)));return row;}));$('download-playlist').href=s.playlist;$('youtube-note').hidden=s.selection?.kind!=='youtube';$('selected-title').textContent=s.selection?.title||'لم يتم اختيار بث';$('selected-majed-server').hidden=!s.selection?.serverName;$('selected-majed-server').textContent=s.selection?.serverName?'مشغّل ماجد الحالي: '+s.selection.serverName+(s.selection.serverId?' · اختيار محفوظ':' · اختيار تلقائي'):'';$('server-state').textContent=(s.stopped?'البث متوقف بأمرك':'التشغيل على الاستضافة مستقل عن هذه الصفحة')+' · مدة تشغيل الخادم '+Math.floor(s.uptime/60)+' دقيقة';$('viewers').textContent=s.viewers+' / '+s.maxViewers+' متصلين';$('resume-broadcast').disabled=!s.selection||!s.stopped;$('stop-broadcast').disabled=s.stopped||!s.selection;renderMembers();$('history').replaceChildren(...(s.history||[]).filter(x=>x.kind!=='helper').map(x=>button(x.title||x.code||x.url,()=>action('/api/select',x))));if(!initialized){const a=room.settings;$('setting-name').value=a.name;$('setting-announcement').value=a.announcement;$('setting-chat').checked=a.chatEnabled;$('setting-reactions').checked=a.reactionsEnabled;$('setting-slow').value=a.slowSeconds;$('setting-max').value=a.maxViewers;initialized=true;if(s.selection?.kind==='url'&&isMajedPage(s.selection.url)){$('source-kind').value='url';$('source-url').value=s.selection.url;$('source-title').value=s.selection.title||'';$('source-kind').onchange();}}}
+function render(){renderChannels();showDiagnosticConsent();const s=state;renderPublicEntry();document.body.classList.toggle('guest',!s.authorized);renderConnection();const qs=$('quality-select'),previous=qs.value,options=[{id:'auto',label:'تلقائي · أفضل مسار متاح'},...(s.qualities||[])];const signature=JSON.stringify(options);if(qs.dataset.options!==signature){qs.replaceChildren(...options.map(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.label;return o;}));qs.value=options.some(x=>x.id===previous)?previous:'auto';qs.dataset.options=signature;}qs.disabled=isFrameSource(s.selection)||s.requiresRelay===true;$('go-live').disabled=isFrameSource(s.selection);window.dshoofStudio?.render();$('server-stream-controls').hidden=!s.canControl;$('admin').hidden=!s.canControl||!!window.dshoofStudio&&document.body.dataset.page!=='admin';$('admin-link').hidden=!s.canControl;$('guest-message').hidden=s.authorized;$('guest-reason').textContent=s.status||'اختر اسمك للانضمام إلى اللمّة';$('title').textContent=s.selection?.title||'دشوف مباشر';if(!running||v.readyState>=3&&!v.paused)$('status').textContent=s.status||'';$('live-badge').textContent=s.stopped?'متوقف':s.ready?'جاهز':'بانتظار البث';$('source-badge').textContent=s.selection?.kind==='helper'?'مصدر ملغى':s.selection?.kind==='youtube'?'YouTube':'HLS';$('waiting').hidden=running;const idle=s.stopped||!s.selection||s.ended;$('waiting-title').textContent=!channelChosen?'اختر قناتك أعلاه':idle?'لا توجد مباراة حالياً':s.ready?'البث جاهز':'جاري تجهيز البث';$('waiting-text').textContent=idle?'اللمّة ترجع مع صافرة البداية. تابعنا لمعرفة موعد البث القادم.':s.status||'نجهّز لك المشاهدة…';renderRoom();if(!s.canControl)return;renderBroadcastAudio();$('playlist').value=s.playlist;$('quality-note').textContent=s.qualityNote||'';$('download-qualities').href=s.allQualitiesPlaylist;$('download-qualities').hidden=isFrameSource(s.selection);$('quality-links').hidden=isFrameSource(s.selection);$('download-playlist').hidden=s.selection?.kind==='helper';$('copy-playlist').hidden=s.selection?.kind==='helper';$('playlist').closest('label')?.classList.toggle('helper-unavailable',s.selection?.kind==='helper');$('quality-links').replaceChildren(...(s.qualityPlaylists||[]).map(q=>{const row=document.createElement('div');const a=document.createElement('a');a.className='button';a.href=q.url;a.textContent=q.label+' · تنزيل M3U';a.download='dshoof-'+q.id+'.m3u';row.append(a,button('نسخ رابط '+q.label,()=>copy(q.url)));return row;}));$('download-playlist').href=s.playlist;$('youtube-note').hidden=s.selection?.kind!=='youtube';$('selected-title').textContent=s.selection?.title||'لم يتم اختيار بث';$('selected-majed-server').hidden=!s.selection?.serverName;$('selected-majed-server').textContent=s.selection?.serverName?'مشغّل ماجد الحالي: '+s.selection.serverName+(s.selection.serverId?' · اختيار محفوظ':' · اختيار تلقائي'):'';$('server-state').textContent=(s.stopped?'البث متوقف بأمرك':'التشغيل على الاستضافة مستقل عن هذه الصفحة')+' · مدة تشغيل الخادم '+Math.floor(s.uptime/60)+' دقيقة';$('viewers').textContent=s.viewers+' / '+s.maxViewers+' متصلين';$('resume-broadcast').disabled=!s.selection||!s.stopped;$('stop-broadcast').disabled=s.stopped||!s.selection;renderMembers();$('history').replaceChildren(...(s.history||[]).filter(x=>x.kind!=='helper').map(x=>button(x.title||x.code||x.url,()=>action('/api/select',x))));if(!initialized){const a=room.settings;$('setting-name').value=a.name;$('setting-announcement').value=a.announcement;$('setting-chat').checked=a.chatEnabled;$('setting-reactions').checked=a.reactionsEnabled;$('setting-slow').value=a.slowSeconds;$('setting-max').value=a.maxViewers;initialized=true;if(s.selection?.kind==='url'&&isMajedPage(s.selection.url)){$('source-kind').value='url';$('source-url').value=s.selection.url;$('source-title').value=s.selection.title||'';$('source-kind').onchange();}}}
 async function refresh({afterCurrent=false}={}){
  if(refreshRequest){const pending=refreshRequest;await pending;if(!afterCurrent)return;if(refreshRequest===pending)refreshRequest=null;return refresh();}
  const pending=fetchStatus();refreshRequest=pending;try{return await pending;}finally{if(refreshRequest===pending)refreshRequest=null;}
@@ -385,7 +391,6 @@ const v=$('video');$('cast').hidden=!(v.remote||v.webkitShowPlaybackTargetPicker
 async function wake(){try{if(wantWake&&document.visibilityState==='visible')wakeLock=await navigator.wakeLock.request('screen');else{await wakeLock?.release();wakeLock=null;}controlLabel('wake',wantWake?'إلغاء إبقاء الشاشة':'إبقاء الشاشة','eye');}catch{wantWake=false;notice('تعذر إبقاء الشاشة مضاءة على هذا الجهاز');}}
 $('wake').hidden=!navigator.wakeLock;$('wake').onclick=()=>{wantWake=!wantWake;wake();};document.addEventListener('visibilitychange',()=>{wake();if(!document.hidden)refresh();});
 $('focus').onclick=()=>{$('focus').setAttribute('aria-pressed',String(document.body.classList.toggle('cinema')));};$('chat-hide').onclick=()=>{$('chat-body').hidden=!$('chat-body').hidden;controlLabel('chat-hide',$('chat-body').hidden?'إظهار':'إخفاء',$('chat-body').hidden?'eye':'eye-off');$('chat-hide').setAttribute('aria-expanded',String(!$('chat-body').hidden));$('chat-hide').setAttribute('aria-label',$('chat-body').hidden?'إظهار الدردشة':'إخفاء الدردشة');};
-$('stream-route').onchange=()=>{render();if(state.ready)watch();};
 $('quality-select').onchange=()=>{if(state.ready){revision=playbackRevision();watch();}};
 $('playback-mode').onchange=()=>{try{localStorage.setItem('dshoof-live-mode-v2',$('playback-mode').value);}catch{}if(running)watch();};
 try{$('playback-mode').value=localStorage.getItem('dshoof-live-mode-v2')||'close';}catch{$('playback-mode').value='close';}
@@ -503,3 +508,26 @@ $('diagnostic-yes').onclick=()=>chooseDiagnosticConsent(true);
 $('diagnostic-no').onclick=()=>chooseDiagnosticConsent(false);
 
 $('diagnostic-consent').addEventListener('cancel',()=>{chooseDiagnosticConsent(false);});
+
+
+let audioFormSignature='';
+function renderBroadcastAudio(){
+ const a=state.audio||{mode:'source',url:'',gain:100,delay:0};
+ const signature=activeChannel+':'+(state.audioRevision||0);
+ if(signature===audioFormSignature)return;
+ audioFormSignature=signature;$('broadcast-audio-mode').value=a.mode;
+ $('broadcast-audio-url').value=a.url||'';$('broadcast-audio-gain').value=a.gain??100;$('broadcast-audio-delay').value=a.delay??0;
+ updateBroadcastAudioFields();
+}
+function updateBroadcastAudioFields(){
+ const mode=$('broadcast-audio-mode').value;
+ $('broadcast-audio-url-field').hidden=mode!=='external';$('broadcast-audio-url').required=mode==='external';
+ $('broadcast-audio-gain').disabled=$('broadcast-audio-delay').disabled=mode==='mute';
+}
+$('broadcast-audio-mode').onchange=updateBroadcastAudioFields;
+$('broadcast-audio-form').onsubmit=async event=>{
+ event.preventDefault();const channel=activeChannel;const value={mode:$('broadcast-audio-mode').value,url:$('broadcast-audio-url').value,gain:Number($('broadcast-audio-gain').value),delay:Number($('broadcast-audio-delay').value)};
+ $('broadcast-audio-save').disabled=true;
+ try{notice('نفحص إعداد الصوت قبل تطبيقه على القناة…');const result=await api('/api/audio',value);if(result&&channel===activeChannel){audioFormSignature='';await refresh({afterCurrent:true});notice('تم حفظ صوت القناة لجميع المشاهدين.');}}
+ catch(error){notice(error.message);}finally{$('broadcast-audio-save').disabled=false;}
+};
