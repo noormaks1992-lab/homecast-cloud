@@ -1,0 +1,433 @@
+{
+  "scope": "single channel HLS HTTP consumers, not full browser decode",
+  "stages": [
+    {
+      "event": "start",
+      "baseline_failures": 2,
+      "original_limit": 30,
+      "target": 1000,
+      "elapsed_s": 6.5
+    },
+    {
+      "event": "stage_start",
+      "target": 1,
+      "elapsed_s": 6.5
+    },
+    {
+      "event": "sample",
+      "target": 1,
+      "receiving_last12s": 1,
+      "server_viewers": 1,
+      "server_watching": 1,
+      "segments": 1,
+      "errors": {},
+      "segment_seconds_p95": 1.323,
+      "download_duration_ratio_p95": 0.689,
+      "rss_mb": 146.3,
+      "source_failures": 2,
+      "control_pair_s": 0.79,
+      "total_mb": 4.1,
+      "elapsed_s": 15.4
+    },
+    {
+      "event": "sample",
+      "target": 1,
+      "receiving_last12s": 1,
+      "server_viewers": 1,
+      "server_watching": 1,
+      "segments": 4,
+      "errors": {},
+      "segment_seconds_p95": 1.478,
+      "download_duration_ratio_p95": 0.689,
+      "rss_mb": 149.3,
+      "source_failures": 2,
+      "control_pair_s": 0.8,
+      "total_mb": 8.6,
+      "elapsed_s": 24.2
+    },
+    {
+      "event": "sample",
+      "target": 1,
+      "receiving_last12s": 1,
+      "server_viewers": 1,
+      "server_watching": 1,
+      "segments": 5,
+      "errors": {},
+      "segment_seconds_p95": 1.748,
+      "download_duration_ratio_p95": 0.676,
+      "rss_mb": 149.5,
+      "source_failures": 2,
+      "control_pair_s": 0.82,
+      "total_mb": 15.6,
+      "elapsed_s": 33.0
+    },
+    {
+      "event": "sample",
+      "target": 1,
+      "receiving_last12s": 1,
+      "server_viewers": 1,
+      "server_watching": 1,
+      "segments": 5,
+      "errors": {},
+      "segment_seconds_p95": 1.506,
+      "download_duration_ratio_p95": 0.402,
+      "rss_mb": 149.7,
+      "source_failures": 2,
+      "control_pair_s": 0.8,
+      "total_mb": 20.7,
+      "elapsed_s": 41.8
+    },
+    {
+      "event": "stage_end",
+      "target": 1,
+      "duration_s": 35.3,
+      "mbps": 4.7,
+      "stop_reason": null,
+      "elapsed_s": 41.8
+    },
+    {
+      "event": "stage_start",
+      "target": 5,
+      "elapsed_s": 41.8
+    },
+    {
+      "event": "sample",
+      "target": 5,
+      "receiving_last12s": 5,
+      "server_viewers": 5,
+      "server_watching": 5,
+      "segments": 14,
+      "errors": {},
+      "segment_seconds_p95": 1.342,
+      "download_duration_ratio_p95": 0.337,
+      "rss_mb": 149.7,
+      "source_failures": 2,
+      "control_pair_s": 0.59,
+      "total_mb": 37.2,
+      "elapsed_s": 50.6
+    },
+    {
+      "event": "sample",
+      "target": 5,
+      "receiving_last12s": 5,
+      "server_viewers": 5,
+      "server_watching": 5,
+      "segments": 24,
+      "errors": {},
+      "segment_seconds_p95": 1.313,
+      "download_duration_ratio_p95": 0.359,
+      "rss_mb": 149.8,
+      "source_failures": 2,
+      "control_pair_s": 0.55,
+      "total_mb": 73.7,
+      "elapsed_s": 59.1
+    },
+    {
+      "event": "sample",
+      "target": 5,
+      "receiving_last12s": 5,
+      "server_viewers": 5,
+      "server_watching": 5,
+      "segments": 21,
+      "errors": {},
+      "segment_seconds_p95": 1.059,
+      "download_duration_ratio_p95": 0.521,
+      "rss_mb": 150.0,
+      "source_failures": 2,
+      "control_pair_s": 0.68,
+      "total_mb": 109.1,
+      "elapsed_s": 67.8
+    },
+    {
+      "event": "sample",
+      "target": 5,
+      "receiving_last12s": 5,
+      "server_viewers": 5,
+      "server_watching": 5,
+      "segments": 25,
+      "errors": {},
+      "segment_seconds_p95": 0.937,
+      "download_duration_ratio_p95": 0.294,
+      "rss_mb": 150.0,
+      "source_failures": 2,
+      "control_pair_s": 0.64,
+      "total_mb": 127.4,
+      "elapsed_s": 76.5
+    },
+    {
+      "event": "stage_end",
+      "target": 5,
+      "duration_s": 34.7,
+      "mbps": 24.61,
+      "stop_reason": null,
+      "elapsed_s": 76.5
+    },
+    {
+      "event": "stage_start",
+      "target": 15,
+      "elapsed_s": 76.5
+    },
+    {
+      "event": "sample",
+      "target": 15,
+      "receiving_last12s": 15,
+      "server_viewers": 15,
+      "server_watching": 15,
+      "segments": 41,
+      "errors": {},
+      "segment_seconds_p95": 0.987,
+      "download_duration_ratio_p95": 0.321,
+      "rss_mb": 150.5,
+      "source_failures": 2,
+      "control_pair_s": 0.76,
+      "total_mb": 185.8,
+      "elapsed_s": 85.7
+    },
+    {
+      "event": "sample",
+      "target": 15,
+      "receiving_last12s": 15,
+      "server_viewers": 15,
+      "server_watching": 15,
+      "segments": 51,
+      "errors": {},
+      "segment_seconds_p95": 0.828,
+      "download_duration_ratio_p95": 0.386,
+      "rss_mb": 150.5,
+      "source_failures": 2,
+      "control_pair_s": 3.52,
+      "total_mb": 259.0,
+      "elapsed_s": 97.3
+    },
+    {
+      "event": "sample",
+      "target": 15,
+      "receiving_last12s": 15,
+      "server_viewers": 15,
+      "server_watching": 15,
+      "segments": 64,
+      "errors": {},
+      "segment_seconds_p95": 2.285,
+      "download_duration_ratio_p95": 0.882,
+      "rss_mb": 150.6,
+      "source_failures": 2,
+      "control_pair_s": 1.05,
+      "total_mb": 353.8,
+      "elapsed_s": 106.3
+    },
+    {
+      "event": "sample",
+      "target": 15,
+      "receiving_last12s": 15,
+      "server_viewers": 15,
+      "server_watching": 15,
+      "segments": 62,
+      "errors": {},
+      "segment_seconds_p95": 1.038,
+      "download_duration_ratio_p95": 0.315,
+      "rss_mb": 151.6,
+      "source_failures": 2,
+      "control_pair_s": 0.66,
+      "total_mb": 422.9,
+      "elapsed_s": 115.0
+    },
+    {
+      "event": "stage_end",
+      "target": 15,
+      "duration_s": 38.5,
+      "mbps": 61.39,
+      "stop_reason": null,
+      "elapsed_s": 115.0
+    },
+    {
+      "event": "stage_start",
+      "target": 30,
+      "elapsed_s": 115.0
+    },
+    {
+      "event": "sample",
+      "target": 30,
+      "receiving_last12s": 30,
+      "server_viewers": 30,
+      "server_watching": 30,
+      "segments": 67,
+      "errors": {},
+      "segment_seconds_p95": 1.149,
+      "download_duration_ratio_p95": 0.542,
+      "rss_mb": 155.8,
+      "source_failures": 2,
+      "control_pair_s": 1.13,
+      "total_mb": 587.5,
+      "elapsed_s": 124.9
+    },
+    {
+      "event": "sample",
+      "target": 30,
+      "receiving_last12s": 30,
+      "server_viewers": 30,
+      "server_watching": 30,
+      "segments": 136,
+      "errors": {},
+      "segment_seconds_p95": 2.308,
+      "download_duration_ratio_p95": 0.925,
+      "rss_mb": 161.3,
+      "source_failures": 2,
+      "control_pair_s": 0.6,
+      "total_mb": 750.8,
+      "elapsed_s": 133.5
+    },
+    {
+      "event": "sample",
+      "target": 30,
+      "receiving_last12s": 30,
+      "server_viewers": 30,
+      "server_watching": 30,
+      "segments": 52,
+      "errors": {},
+      "segment_seconds_p95": 1.203,
+      "download_duration_ratio_p95": 0.313,
+      "rss_mb": 161.3,
+      "source_failures": 2,
+      "control_pair_s": 0.69,
+      "total_mb": 828.4,
+      "elapsed_s": 142.2
+    },
+    {
+      "event": "sample",
+      "target": 30,
+      "receiving_last12s": 7,
+      "server_viewers": 30,
+      "server_watching": 30,
+      "segments": 7,
+      "errors": {},
+      "segment_seconds_p95": 1.25,
+      "download_duration_ratio_p95": 0.326,
+      "rss_mb": 161.4,
+      "source_failures": 2,
+      "control_pair_s": 0.68,
+      "total_mb": 828.4,
+      "elapsed_s": 150.9
+    },
+    {
+      "event": "stage_end",
+      "target": 30,
+      "duration_s": 35.9,
+      "mbps": 90.43,
+      "stop_reason": "insufficient_media_delivery",
+      "elapsed_s": 150.9
+    },
+    {
+      "event": "cleaned",
+      "maxViewers": 30,
+      "watching": 0,
+      "ready": true,
+      "relayReady": true,
+      "elapsed_s": 151.7
+    }
+  ],
+  "after_stop": [
+    {
+      "http": 503,
+      "last_segment": null,
+      "segments": 0,
+      "request_s": 0.63,
+      "failures": 2
+    },
+    {
+      "http": 503,
+      "last_segment": null,
+      "segments": 0,
+      "request_s": 0.73,
+      "failures": 2
+    },
+    {
+      "http": 503,
+      "last_segment": null,
+      "segments": 0,
+      "request_s": 0.63,
+      "failures": 2
+    },
+    {
+      "http": 503,
+      "last_segment": null,
+      "segments": 0,
+      "request_s": 0.79,
+      "failures": 2
+    }
+  ],
+  "subsequent_recovery": [
+    {
+      "http": 200,
+      "last_segment": "1792854975818510",
+      "segments": 3,
+      "request_s": 1.01,
+      "failures": 2,
+      "direct_http": 200,
+      "direct_last_hash": "cbc1bbd6a9f9"
+    },
+    {
+      "http": 200,
+      "last_segment": "1792854975818510",
+      "segments": 3,
+      "request_s": 1.19,
+      "failures": 2,
+      "direct_http": 200,
+      "direct_last_hash": "cbc1bbd6a9f9"
+    },
+    {
+      "http": 200,
+      "last_segment": "1792854975818511",
+      "segments": 4,
+      "request_s": 1.07,
+      "failures": 2,
+      "direct_http": 200,
+      "direct_last_hash": "cbc1bbd6a9f9"
+    },
+    {
+      "http": 200,
+      "last_segment": "1792854975818514",
+      "segments": 7,
+      "request_s": 0.97,
+      "failures": 2,
+      "direct_http": 200,
+      "direct_last_hash": "cbc1bbd6a9f9"
+    }
+  ],
+  "first_problem_concurrency": 30,
+  "last_completed_stage_without_guard_stop": 15,
+  "capacity_limit_determined": false,
+  "limitations": [
+    "One cloud load generator and network path",
+    "Short stages, not a soak test",
+    "No per-frame decode verification",
+    "No causal isolation of upstream, ingest and egress",
+    "Direct source playlist hash may identify a nested manifest, not a media segment"
+  ],
+  "original_room_restored": true,
+  "original_max_viewers": 30,
+  "temporary_invite_revoked": true,
+  "post_restore": {
+    "ready": true,
+    "relayReady": true,
+    "viewers": 0,
+    "watching": 0,
+    "maxViewers": 30,
+    "rss": 116113408,
+    "uptime": 46,
+    "browser_video": {
+      "readyState": 4,
+      "paused": false,
+      "width": 1920,
+      "height": 1080,
+      "buffer_seconds": 8.978
+    },
+    "later_zero_load_stall": {
+      "readyState": 2,
+      "paused": false,
+      "buffer_seconds": 0.054214,
+      "test_viewers": 0,
+      "server_ready": true,
+      "server_relayReady": true
+    }
+  }
+}
