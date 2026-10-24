@@ -1,0 +1,32 @@
+{
+  "reference": "64dc72e618cbe46c8d42cc9909b50cae23597856",
+  "files": [
+    {
+      "path": "server.mjs",
+      "sha256": "e3a487a73080962413d6e9dc0ccb3629cf97a96d37a946562cf392d3c274467b",
+      "bytes": 43890
+    },
+    {
+      "path": "quality.mjs",
+      "sha256": "c9397d25f5e434023674631db80cd391ce08c5dd1d72a83f1e5d3157e626fc83",
+      "bytes": 8181
+    },
+    {
+      "path": "public/app.js",
+      "sha256": "20cbffd7bad820aae2b5751e1ddbfcef007682b6ae187e114ee9c263e534b372",
+      "bytes": 70007
+    },
+    {
+      "path": "public/index.html",
+      "sha256": "ac5a88e7fba145abc44077709f0a2a4aaff1c4dd85cc6304032c7b0b88508a59",
+      "bytes": 46953
+    },
+    {
+      "path": "public/pro.js",
+      "sha256": "c12ca35563478855d6f586cd48b9c46bca5595c3d856d8680bd327261601ea88",
+      "bytes": 25936
+    }
+  ],
+  "hostFiveFilesVerified": true,
+  "note": "No persistent data or startup changes. Owner approved current restored version."
+}
