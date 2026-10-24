@@ -1,0 +1,15 @@
+# Measured Majed HLS alignment — 2026-10-24
+
+Based on private app commit 8ce36a5b4ec69f86b1df2522942d77c3f8340c31. Both channels, credentials and persistent state are retained.
+
+Observed the supplied match playing in the connected browser at 1920x1080. Its diagnostic DOM reports HLS.js 1.7.3, 6,096,000 bps level metadata and approximately 15–17 seconds buffered during samples. This is an observation, not a capacity or continuity guarantee. Downloaded public adapter/config scripts for analysis only; they are not redistributed here. Dshoof's existing HLS bundle is identical (trimmed SHA256 4a472321aabe8aec82cd48443a8475b09682f1b36e316a4c1b7850cda9a7ca86).
+
+Matched HLS configuration: worker on, low latency mode off, back buffer 30 s, fragment timeout 20 s, six retries and 750 ms fragment retry delay; playlist/level timeouts 20 s and six retries. Leave forward buffer and adaptive quality selection to the same HLS engine instead of overriding them twice in app.js and pro.js. The embedded Shaka-like configuration is not the effective HLS adapter configuration and was not copied blindly.
+
+Latest owner instruction prioritizes faster startup/recovery over literal parity. Startup requests play immediately; first application-level fatal-network retry has no added delay, subsequent failures back off. Fast mode targets two source target durations behind live (balanced three, stable five). No guarantee of zero latency or zero stalls. No forced startup seek or periodic custom seek on direct HLS. Manually selected resolutions never silently switch to the differently encoded relay path; automatic mode retains the verified relay fallback. Quality and source/relay selectors are visible beneath the player; channel cards remain visible.
+
+Fixes a server bug where a single-rendition HLS source returned the initial configured media playlist forever. Top-level requests now use the existing shared half-TARGETDURATION manifest cache and preserve source sequence, segment duration, media bytes and per-viewer authorization. No transcoding settings changed. Rate-limit cooldown remains.
+
+Validation: syntax checks; 8 focused tests passing for immediate startup/fatal retry, cancellation across channel changes, moving single-quality playlists, shared polling, 429 cooldown, quality preservation and per-viewer authorization. No duplicate DOM IDs; quick controls outside settings dialog. Full integration test could not run in the partial checkout (missing runtime dependencies); no production restart was performed. A live side-by-side interruption experiment is still needed to measure actual recovery time; the 750 ms value is a retry delay, not measured end-to-end recovery.
+
+Deployment: only server.mjs, quality.mjs, public/app.js, public/pro.js and public/index.html. Create host duplicates and verify saved text. DO NOT restart/stop/start/redeploy: user reserved that action. Do not replace data, .env, startup launcher or supervisor. Git source changes do not themselves deploy to Botkeep.

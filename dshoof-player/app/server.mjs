@@ -193,7 +193,7 @@ if(p==='/_input'){await channelById(url.searchParams.get('channel')).input(req,r
  if(mediaPath){await quality.serve(req,res,mediaPath[1],channelBase,a.key);return;}
  const q=qualityPath[1];if(!quality.available()){if(q!=='auto')return json(res,{error:'هذه الدقة غير متاحة من المصدر الحالي'},404);res.writeHead(307,{Location:channelBase+'/live/dshoof.m3u8'+(a.key?'?key='+encodeURIComponent(a.key):'')});return res.end();}
  if(q!=='auto'&&!quality.list().some(x=>x.id===q))return json(res,{error:'هذه الدقة غير متاحة من المصدر الحالي'},404);
- res.setHeader('Content-Type','application/vnd.apple.mpegurl');return res.end(quality.masterPlaylist(q==='auto'?undefined:Number(q.slice(0,-1)),channelBase,a.key));
+ res.setHeader('Content-Type','application/vnd.apple.mpegurl');return res.end(await quality.playlist(q==='auto'?undefined:Number(q.slice(0,-1)),channelBase,a.key));
  }
  const shortPlaylist=p.match(/^\/p\/([\w-]{12})\.m3u$/);if(shortPlaylist){url.searchParams.set('key',shortPlaylist[1]);p='/dshoof.m3u';}
  if(p==='/dshoof.m3u'||p==='/live/dshoof.m3u8'||/^\/live\/segment_\d+\.ts$/.test(p)){
@@ -221,4 +221,3 @@ setInterval(()=>Promise.all(channels.map(c=>c.maintain())).catch(()=>{}),15000).
 let schedulerBusy=false;setInterval(async()=>{if(schedulerBusy)return;schedulerBusy=true;try{const now=Date.now();for(const item of pro.state.schedules){if(item.done)continue;if(now>=item.end){if(item.started&&state.activeSchedule===item.id){await stopBroadcast();state.activeSchedule=null;}item.done=true;await persist();}else if(!item.started&&now>=item.start){item.started=true;state.activeSchedule=item.id;await persist();try{await select(item.source);await pro.log('الجدولة','تشغيل موعد',item.title);}catch{await pro.log('الجدولة','تعذر تشغيل الموعد',item.title);}}}pro.cleanHistory();}catch{}finally{schedulerBusy=false;}},15000).unref();
 
 for(const sig of ['SIGTERM','SIGINT'])process.on(sig,async()=>{stopping=true;chatEvents.close();await Promise.all(channels.map(c=>c.close()));await watchAnalytics.close().catch(()=>{console.error('[watch-analytics] Unable to flush recent counters');});server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),2000).unref();});
-

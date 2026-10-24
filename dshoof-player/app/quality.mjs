@@ -50,6 +50,7 @@ export function createQuality({open=openPublic,now=Date.now}={}){
   return rewriteInput(filtered,url,u=>map(u,base,key,lists.has(u),height));
  }
  function masterPlaylist(height,base,key){if(!master)throw Error('جاري فحص دقات المصدر');return rewrite(master.text,master.url,base,key,height);}
+ async function playlist(height,base,key){const generation=epoch;if(!source||!master)throw Error('جاري فحص دقات المصدر');const m=await manifest(source.url);if(generation!==epoch)throw Error('تغير مصدر البث');return rewrite(m.text,m.url,base,key,height);}
  async function serve(req,res,id,base,key){
   const entry=registry.get(id);if(!entry)throw Error('تغير المصدر؛ أعد فتح البث');const abort=new AbortController();res.once('close',()=>abort.abort());
   const {url,playlist,height}=entry,generation=epoch;
@@ -67,5 +68,5 @@ export function createQuality({open=openPublic,now=Date.now}={}){
   res.statusCode=response.statusCode;for(const name of ['content-type','content-length','content-range','accept-ranges'])if(response.headers[name])res.setHeader(name,response.headers[name]);
   res.on('close',()=>response.destroy());const output=Readable.from((async function*(){yield head;for await(const chunk of iterator)yield chunk;})());output.on('error',()=>res.destroy());response.on('error',()=>res.destroy());output.pipe(res);
  }
- return {configure,reset,masterPlaylist,serve,list:()=>qualityList(items),available:()=>!!master&&(items.length>0||/^#EXTINF:/m.test(master.text))};
+ return {configure,reset,masterPlaylist,playlist,serve,list:()=>qualityList(items),available:()=>!!master&&(items.length>0||/^#EXTINF:/m.test(master.text))};
 }
