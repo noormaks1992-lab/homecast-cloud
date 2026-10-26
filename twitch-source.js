@@ -34,7 +34,7 @@ function normalizeTwitchUrl(value) {
   }
 
   if (host === 'clips.twitch.tv') {
-    const clip = parts[0] || parsed.searchParams.get('clip');
+    const clip = parts[0] === 'embed' ? parsed.searchParams.get('clip') : (parts[0] || parsed.searchParams.get('clip'));
     return clip && CLIP_RE.test(clip) ? result('https://clips.twitch.tv/' + clip, 'clip') : error('رابط مقطع Twitch غير صالح.');
   }
 
