@@ -8,6 +8,7 @@ const REMOTE=process.env.HOMECAST_REMOTE==='1', WINDOWS=process.platform==='win3
 const FFMPEG = process.env.HOMECAST_FFMPEG || (WINDOWS?path.join(BIN,'ffmpeg.exe'):'ffmpeg'), FFPROBE = process.env.HOMECAST_FFPROBE || (WINDOWS?path.join(BIN,'ffprobe.exe'):'ffprobe');
 const MEDIA_PORT = Number(process.env.HOMECAST_MEDIA_PORT)||8877, ADMIN_PORT = Number(process.env.HOMECAST_ADMIN_PORT)||8878;
 const mediaBridge=require('./media-bridge')(ADMIN_PORT+100);
+const twitchSource = require('./twitch-source');
 fs.mkdirSync(DATA, {recursive:true});
 const configPath = path.join(ROOT, 'config.json');
 let config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/,''));
@@ -55,13 +56,21 @@ async function resolveSource(data){
     const info=await probe(value);return {mode:'file',input:value,label:path.basename(value),...info};
   }
   if(data.mode!=='url'||!/^https?:\/\//i.test(value))throw Error('أدخل رابط http أو https صالحًا');
-  // First test as media. A webpage may be resolvable by yt-dlp; no browser cookies are read.
-  try { const info=await probe(value);return {mode:'url',original:value,input:value,label:'رابط بث مباشر',...info}; } catch {}
+  // Twitch embeds are normalized to public channel/VOD/clip URLs before extraction.
+  // The player's parent parameter is only for browser embeds and is not needed by the server extractor.
+  const twitch = twitchSource.normalizeTwitchUrl(value);
+  if (twitch.error) throw Error(twitch.error);
+  const extractionUrl = twitch.isTwitch ? twitch.url : value;
+  // Test non-Twitch URLs as direct media first; webpage extraction is handled by yt-dlp below.
+  if (!twitch.isTwitch) {
+    try { const info=await probe(value);return {mode:'url',original:value,input:value,label:'رابط بث مباشر',...info}; } catch {}
+  }
   let info;
   try {
-    const {stdout}=await run(process.env.HOMECAST_YTDLP || (WINDOWS?path.join(BIN,'yt-dlp.exe'):'yt-dlp'),['--ignore-config','--no-playlist','--no-warnings','--skip-download','--dump-single-json','--socket-timeout','15','--js-runtimes',`node:${process.execPath}`,'-f','best[height<=1080]/bestvideo[height<=1080]+bestaudio/best','--',value],{windowsHide:true,timeout:65000,maxBuffer:5*1024*1024});
+    const {stdout}=await run(process.env.HOMECAST_YTDLP || (WINDOWS?path.join(BIN,'yt-dlp.exe'):'yt-dlp'),['--ignore-config','--no-playlist','--no-warnings','--skip-download','--dump-single-json','--socket-timeout','15','--js-runtimes',`node:${process.execPath}`,'-f','best[height<=1080]/bestvideo[height<=1080]+bestaudio/best','--',extractionUrl],{windowsHide:true,timeout:65000,maxBuffer:5*1024*1024});
     info=JSON.parse(stdout);
   }catch{
+    if (twitch.isTwitch) throw Error('تعذّر استخراج مصدر Twitch. تحقق من أن القناة تبث الآن أو أن الفيديو/المقطع متاح للعامة، ثم حدّث yt-dlp. لا يمكن تجاوز تسجيل الدخول أو قيود المشاهدة.');
     const discovered=await require('./discover-media')(value,probe);
     if(discovered)return {mode:'url',original:value,label:'فيديو مكتشف داخل الموقع',extracted:true,...discovered};
     throw Error('تعذّر استخراج بث مستقل. جرى فحص الرابط والمواقع المدعومة وعناصر الفيديو والإطارات. هذا الموقع قد يحتاج متصفحًا أو جلسة مشاهدة؛ استخدم فتح الموقع وبث الشاشة.');
