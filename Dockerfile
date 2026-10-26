@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 
     && /opt/extractor/bin/pip install --no-cache-dir yt-dlp
 ENV PATH="/opt/extractor/bin:${PATH}" HOMECAST_REMOTE=1 HOMECAST_ROOT=/data PORT=8080 NODE_ENV=production
 WORKDIR /app
-COPY package.json cloud-config.js cloud-entry.js gateway.js server.js remote-client.js discover-media.js media-bridge.js cloud.html cloud.css cloud.js ./
+COPY package.json cloud-config.js cloud-entry.js gateway.js server.js remote-client.js discover-media.js media-bridge.js twitch-source.js cloud.html cloud.css cloud.js ./
 RUN mkdir /data && chown node:node /data
 USER node
 EXPOSE 8080
