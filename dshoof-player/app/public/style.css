@@ -31,3 +31,17 @@
 /* 3.5 overlay player: a single video surface with touch-sized controls. */
 /* Classic native player and separate controls. */
 #dshoof-player.classic-player{display:contents}
+
+.telegram-panel{margin-top:22px;padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.telegram-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.telegram-heading h4{font-size:14px;margin:0 0 5px}
+.telegram-heading p,.telegram-panel>.hint{font-size:10px;line-height:1.8;color:var(--muted);margin:7px 0}
+.telegram-state{flex:none;font-size:9px;padding:5px 9px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+.telegram-config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:15px 0}
+.telegram-config label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:10px;color:var(--muted)}
+.telegram-config input{width:100%;min-width:0;direction:ltr;text-align:left}
+.telegram-actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.telegram-actions button,.telegram-panel .split button{font-size:10px}
+.telegram-status-line{font-size:10px;color:var(--muted);margin:12px 0}
+.telegram-status-line strong{color:var(--text);font-weight:600}
+@media(max-width:760px){.telegram-config{grid-template-columns:1fr}.telegram-actions{grid-column:1}}
