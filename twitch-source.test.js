@@ -11,6 +11,7 @@ test('normalizes an official Twitch channel player embed and drops the parent pa
 test('normalizes Twitch player VOD and clip embeds', () => {
   assert.equal(normalizeTwitchUrl('https://player.twitch.tv/?video=v123456&parent=example.com').url, 'https://www.twitch.tv/videos/123456');
   assert.equal(normalizeTwitchUrl('https://player.twitch.tv/?clip=GreatClip_123&parent=example.com').url, 'https://clips.twitch.tv/GreatClip_123');
+  assert.equal(normalizeTwitchUrl('https://clips.twitch.tv/embed?clip=GreatClip_123&parent=example.com').url, 'https://clips.twitch.tv/GreatClip_123');
 });
 
 test('normalizes canonical channel, VOD and clip URLs', () => {
