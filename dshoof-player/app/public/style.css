@@ -18,3 +18,19 @@
 @media(max-width:360px){.studio-main{padding-inline:15px}.club-intro h1{font-size:23px}.wordmark{font-size:25px}.studio-top-actions>.icon-button{width:32px;min-width:32px}.network-presets button{font-size:8px;padding-inline:6px;gap:4px}.network-presets button svg{width:12px;height:12px}.primary-controls{gap:18px}.waiting-content h3{font-size:19px}.waiting-content p{font-size:7px;max-width:230px}.waiting-kicker{display:none}.waiting-mark{width:23px;height:23px}.waiting-group{font-size:6px}.player-top h2{font-size:10px}.welcome-story{height:105px;min-height:105px}.welcome-content{padding:19px 21px}.welcome-content>h2{font-size:25px}.welcome-content>p{font-size:8px}.welcome-content input,.welcome-content select{font-size:10px}.studio-dialog{padding-inline:18px}.welcome-dialog{padding:0}.telegram-dialog{padding-inline:22px}.telegram-photo{margin-inline:-22px}.members-pagination{gap:8px}.members-pagination span{font-size:8px}.analytics-cards strong{font-size:36px}.share-strip h2{font-size:14px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}.float-reaction{display:none}}
 .motion-off *,.motion-off *::before,.motion-off *::after,.data-saver *,.data-saver *::before,.data-saver *::after,.page-hidden *{animation:none!important}.page-hidden *{transition:none!important}
+
+
+/* Telegram RTMPS publishing controls — owner-only administration */
+.telegram-publish{margin:1rem 0;padding:1rem;border:1px solid var(--line,rgba(120,120,120,.28));border-radius:1rem;background:var(--panel,rgba(120,120,120,.06))}
+.telegram-publish h3{margin:.15rem 0 .6rem}
+.telegram-publish p{line-height:1.7}
+.telegram-publish .telegram-publish-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
+.telegram-publish label{display:flex;flex-direction:column;gap:.4rem;min-width:0}
+.telegram-publish input{width:100%;min-width:0;box-sizing:border-box}
+.telegram-publish .split{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.75rem}
+.telegram-publish .telegram-stream-state{display:flex;align-items:center;gap:.55rem;font-weight:600}
+.telegram-publish .telegram-stream-state::before{content:"";width:.6rem;height:.6rem;flex:0 0 .6rem;border-radius:50%;background:#9b8f79}
+.telegram-publish .telegram-stream-state[data-state="active"]::before{background:#24a56a}
+.telegram-publish .telegram-stream-state[data-state="error"]::before{background:#d94d52}
+.telegram-publish .field-help{font-size:.9em;opacity:.8}
+@media(max-width:640px){.telegram-publish .telegram-publish-fields{grid-template-columns:1fr}}
