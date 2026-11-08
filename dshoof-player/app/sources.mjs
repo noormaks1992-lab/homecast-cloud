@@ -51,8 +51,11 @@ export function watchCardURL(value){
  return 'https://majed-koora.live/api/public/watch-card?key='+encodeURIComponent(key);
 }
 async function majedWatch(value,open){
- const api=watchCardURL(value);if(!api)throw Error('أدخل رابط صفحة مباراة ماجد الذي يحتوي mk');
- const {response}=await open(api,{Accept:'application/json'});
+ const page=inputURL(value);
+ const api=watchCardURL(page.href);if(!api)throw Error('أدخل رابط صفحة مباراة ماجد الذي يحتوي mk');
+ // Preserve the match-page browsing context when requesting its public watch card.
+ // Some provider deployments validate Referer/Origin and reject context-free requests.
+ const {response}=await open(api,{Accept:'application/json',Referer:page.href,Origin:page.origin});
  let data;try{data=JSON.parse((await readLimited(response,262144)).toString('utf8'))}catch{throw Error('تعذر قراءة بيانات صفحة المباراة');}
  const watch=data?.watch;
  if(!data?.success||!watch)throw Error('رابط المباراة غير صالح أو انتهت صلاحيته');
