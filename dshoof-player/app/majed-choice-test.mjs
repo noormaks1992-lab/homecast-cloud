@@ -6,6 +6,14 @@ import {discoverMajedServers,inspectSource} from './sources.mjs';
 const page='https://live.xn----zmcaegc7cl3msazv.com/post?mk=abcdefghijklmnopqrstuv';
 const servers=[{id:'one',name:'سيرفر 1',quality:'تود رسمي',url:'https://example.com/one.css',is_default:true},{id:'two',name:'سيرفر 2',quality:'4k حقيقي',url:'https://example.com/two.css'},{id:'off',url:'https://example.com/off',enabled:false}];
 const card=(list=servers)=>async()=>({response:Readable.from([Buffer.from(JSON.stringify({success:true,watch:{available:true,servers:list,match:{home_team:{name:'A'},away_team:{name:'B'}}}}))])});
+test('watch-card lookup carries the exact match page Referer and Origin',async()=>{
+ let requested;
+ const open=async(url,headers)=>{requested={url,headers};return card()();};
+ await discoverMajedServers(page,{open});
+ assert.equal(requested.headers.Referer,page);
+ assert.equal(requested.headers.Origin,new URL(page).origin);
+ assert.equal(requested.headers.Accept,'application/json');
+});
 test('discovery exposes labels and stable IDs but not signed media URLs',async()=>{
  const result=await discoverMajedServers(page,{open:card()});
  assert.equal(result.servers.length,2);assert.equal(result.servers[1].quality,'4k حقيقي');assert.equal(result.servers[0].isDefault,true);
